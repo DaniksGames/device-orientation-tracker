@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика шариков — 2D / 3D с датчиками (экран = передняя грань)</title>
+    <title>Физика шариков — 2D / 3D с датчиками (исправлена скорость и направления)</title>
     <style>
         * {
             margin: 0;
@@ -132,12 +132,10 @@
         <button class="tab-btn" data-mode="3d">🔵 3D режим (сферы, глубина)</button>
     </div>
 
-    <!-- 2D контейнер -->
     <div id="mode2d" class="mode-container active-mode">
         <canvas id="canvas2d" width="600" height="500" style="width:100%; height:auto; max-width:600px; aspect-ratio:600/500"></canvas>
     </div>
 
-    <!-- 3D контейнер -->
     <div id="mode3d" class="mode-container">
         <div id="threeContainer" style="position:relative; width:100%; aspect-ratio:600/500;"></div>
     </div>
@@ -166,13 +164,12 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- Общие переменные датчиков ---
+    // --- Общие датчики ---
     let beta = 0, gamma = 0;
     let filteredAccX = 0, filteredAccY = 0, filteredAccZ = 0;
     const ACC_FILTER = 0.3;
     let orientationGranted = false, motionGranted = false;
 
-    // Элементы UI
     const betaSpan = document.getElementById('betaVal');
     const gammaSpan = document.getElementById('gammaVal');
     const accXspan = document.getElementById('accXval');
@@ -182,7 +179,7 @@
     const resetBtn2d = document.getElementById('resetBtn2d');
     const resetBtn3d = document.getElementById('resetBtn3d');
     
-    // --- 2D логика (без изменений, работает отлично) ---
+    // --- 2D (без изменений) ---
     let canvas2d = document.getElementById('canvas2d');
     let ctx = canvas2d.getContext('2d');
     let width = 600, height = 500;
@@ -271,10 +268,8 @@
     }
     
     function update2DPhysics(dt) {
-        // Коррекция gamma при экране вниз
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
-        
         const radBeta = beta * Math.PI/180;
         const radGamma = correctedGamma * Math.PI/180;
         let gravX = GRAVITY_BASE * Math.sin(radGamma);
@@ -285,11 +280,9 @@
         if (Math.abs(filteredAccY)>5) accY *= ACCEL_BOOST;
         let totalForceX = gravX + accX;
         let totalForceY = gravY + accY;
-        
         let normalForce = Math.abs(Math.cos(radBeta));
         let dragFactor = 1 - NORMAL_FRICTION_FACTOR * normalForce;
         let finalDrag = BASE_AIR_DRAG * Math.max(0.98, dragFactor);
-        
         for (let p of particles2d) {
             p.vx += totalForceX * dt;
             p.vy += totalForceY * dt;
@@ -298,7 +291,6 @@
             p.x += p.vx * dt;
             p.y += p.vy * dt;
         }
-        
         for (let iter=0; iter<3; iter++) {
             handleCollisions2D();
             handleBoundaries2D();
@@ -327,15 +319,22 @@
         ctx.shadowBlur=0;
     }
     
-    // --- 3D логика (исправленная: экран = передняя грань) ---
+    // --- 3D ЛОГИКА (исправленная: скорости, направления, знаки) ---
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
     const SPHERE_COUNT = 12;
-    const BOX_WIDTH = 4.0;    // ширина (X) - лево/право
-    const BOX_HEIGHT = 4.0;   // высота (Y) - верх/низ
-    const BOX_DEPTH = 5.0;    // глубина (Z) - внутрь экрана
+    const BOX_WIDTH = 4.0;    // X: лево-право
+    const BOX_HEIGHT = 4.0;   // Y: верх-низ
+    const BOX_DEPTH = 5.0;    // Z: глубина (внутрь)
     const SPHERE_RADII = [0.28,0.24,0.32,0.22,0.26,0.3,0.24,0.28,0.24,0.26,0.32,0.24];
-    let force3D = {x:0, y:0, z:0};
+    
+    // НОВЫЕ, сильно уменьшенные коэффициенты для 3D
+    const GRAVITY_BASE_3D = 14.0;       // было 950 -> теперь 14
+    const ACCEL_SCALE_3D = 5.0;         // было 180 -> теперь 5
+    const ACCEL_BOOST_3D = 1.2;         // был 1.8 -> теперь 1.2
+    const AIR_DRAG_3D = 0.99;           // небольшое трение воздуха
+    const WALL_DAMP_3D = 0.90;          // отскок от стен
+    
     let lastTimestamp3d = 0;
     let threeRunning = false;
     let threeContainer = document.getElementById('threeContainer');
@@ -347,18 +346,13 @@
         }
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0f172a);
-        
-        // Камера смотрит на переднюю грань (ось Z направлена от камеры внутрь)
-        // Помещаем камеру перед передней стенкой, чтобы видеть куб в перспективе
         camera = new THREE.PerspectiveCamera(50, 1, 0.1, 20);
-        camera.position.set(0, 0, 5.5);   // прямо перед передней гранью (Z = +2.5 середина, но мы видим от -2.5 до +2.5 по Z)
+        camera.position.set(0, 0, 5.5);
         camera.lookAt(0, 0, 0);
-        
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
         threeContainer.appendChild(renderer.domElement);
         
-        // Освещение
         const ambientLight = new THREE.AmbientLight(0x404060);
         scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -368,19 +362,17 @@
         backLight.position.set(0, 0, -3);
         scene.add(backLight);
         
-        // Полупрозрачный куб (стенки)
+        // Полупрозрачный куб
         const boxMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
         const boxGeo = new THREE.BoxGeometry(BOX_WIDTH, BOX_HEIGHT, BOX_DEPTH);
         const boxMesh = new THREE.Mesh(boxGeo, boxMat);
         scene.add(boxMesh);
-        
-        // Рёбра куба
+        // Рёбра
         const edgesGeo = new THREE.EdgesGeometry(boxGeo);
         const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
         const wireframe = new THREE.LineSegments(edgesGeo, wireMat);
         scene.add(wireframe);
-        
-        // Отметим переднюю грань (экран) тонкой рамкой другого цвета
+        // Передняя грань (экран) подсвечена
         const frontFaceMat = new THREE.LineBasicMaterial({ color: 0xffaa44 });
         const frontCorners = [
             [-BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2], [ BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2],
@@ -393,11 +385,6 @@
         const frontLines = new THREE.Line(frontLineGeo, frontFaceMat);
         scene.add(frontLines);
         
-        // Вспомогательная сетка на "полу" внутри (для ощущения глубины)
-        const gridHelper = new THREE.GridHelper(3.5, 10, 0x88aaff, 0x335588);
-        gridHelper.position.y = -BOX_HEIGHT/2 + 0.05;
-        scene.add(gridHelper);
-        
         // Сферы
         spheres = [];
         sphereMeshes = [];
@@ -408,7 +395,6 @@
             let geometry = new THREE.SphereGeometry(r, 32, 32);
             let material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.2 });
             let sphere = new THREE.Mesh(geometry, material);
-            // случайная позиция внутри куба с учётом радиуса
             let x = (Math.random() - 0.5) * (BOX_WIDTH - 2*r);
             let y = (Math.random() - 0.5) * (BOX_HEIGHT - 2*r);
             let z = (Math.random() - 0.5) * (BOX_DEPTH - 2*r);
@@ -419,7 +405,6 @@
             sphereVelocities.push({ x:0, y:0, z:0 });
         }
         
-        // Адаптация размера
         window.addEventListener('resize', () => {
             if (threeContainer.clientWidth) {
                 renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
@@ -437,40 +422,33 @@
     }
     
     function update3DPhysics(dt) {
-        // Коррекция gamma при экране вниз
+        // Коррекция gamma при экране вниз (такая же, как в 2D)
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
         
         const radBeta = beta * Math.PI/180;
         const radGamma = correctedGamma * Math.PI/180;
         
-        // Оси: X - лево/право (gamma), Y - верх/низ (beta), Z - глубина (внутрь экрана)
-        // При наклоне телефона сила тяжести проецируется на плоскость экрана (X,Y) и на ось Z.
-        // Если телефон смотрит экраном на пользователя, то гравитация направлена вниз по оси Y,
-        // и также может быть небольшая компонента по Z, если телефон наклонён "от себя".
-        // Но мы хотим, чтобы при обычном использовании (телефон вертикально) шары падали вниз (Y),
-        // а при наклоне экрана вверх/вниз они ещё и уходили вглубь (Z).
+        // Силы в пространстве куба (X - лево/право, Y - верх/низ, Z - глубина)
+        // Исправляем знаки: теперь при наклоне телефона вперёд (beta > 0) шары должны лететь вниз (отрицательная Y)
+        // Для этого gravY = -GRAVITY_BASE_3D * sin(radBeta)
+        // При наклоне экрана вверх (beta около +90°) сила по Z толкает шары внутрь (положительная Z) -> gravZ = +GRAVITY_BASE_3D * cos(radBeta)
+        // Боковой наклон (gamma) без изменений (X)
+        let gravX = GRAVITY_BASE_3D * Math.sin(radGamma);
+        let gravY = -GRAVITY_BASE_3D * Math.sin(radBeta);
+        let gravZ = GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
         
-        // Компоненты гравитации:
-        let gravX = GRAVITY_BASE * Math.sin(radGamma);           // боковой наклон
-        let gravY = GRAVITY_BASE * Math.sin(radBeta);            // наклон вперёд/назад
-        let gravZ = GRAVITY_BASE * Math.cos(radBeta) * Math.cos(radGamma); // при горизонтальном положении экрана вверх/вниз
-        
-        // Акселерометр (3 оси)
-        let accX = filteredAccX * ACCEL_SCALE;
-        let accY = filteredAccY * ACCEL_SCALE;
-        let accZ = filteredAccZ * ACCEL_SCALE;
-        if (Math.abs(filteredAccX)>5) accX *= ACCEL_BOOST;
-        if (Math.abs(filteredAccY)>5) accY *= ACCEL_BOOST;
-        if (Math.abs(filteredAccZ)>5) accZ *= ACCEL_BOOST;
+        // Акселерометр (тоже с правильными знаками)
+        let accX = filteredAccX * ACCEL_SCALE_3D;
+        let accY = -filteredAccY * ACCEL_SCALE_3D;   // инверсия Y
+        let accZ = filteredAccZ * ACCEL_SCALE_3D;
+        if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST_3D;
+        if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST_3D;
+        if (Math.abs(filteredAccZ) > 5) accZ *= ACCEL_BOOST_3D;
         
         let totalForceX = gravX + accX;
         let totalForceY = gravY + accY;
         let totalForceZ = gravZ + accZ;
-        
-        // Трение в 3D: небольшое воздушное трение
-        const AIR_DRAG_3D = 0.995;
-        const WALL_DAMP = 0.88;
         
         for (let i=0; i<spheres.length; i++) {
             let vel = sphereVelocities[i];
@@ -488,13 +466,12 @@
             
             let r = spheres[i].r;
             let halfX = BOX_WIDTH/2, halfY = BOX_HEIGHT/2, halfZ = BOX_DEPTH/2;
-            // Столкновения со стенами
-            if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP; }
-            if (pos.x - r < -halfX) { pos.x = -halfX + r; vel.x = -vel.x * WALL_DAMP; }
-            if (pos.y + r > halfY) { pos.y = halfY - r; vel.y = -vel.y * WALL_DAMP; }
-            if (pos.y - r < -halfY) { pos.y = -halfY + r; vel.y = -vel.y * WALL_DAMP; }
-            if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP; }
-            if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP; }
+            if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP_3D; }
+            if (pos.x - r < -halfX) { pos.x = -halfX + r; vel.x = -vel.x * WALL_DAMP_3D; }
+            if (pos.y + r > halfY) { pos.y = halfY - r; vel.y = -vel.y * WALL_DAMP_3D; }
+            if (pos.y - r < -halfY) { pos.y = -halfY + r; vel.y = -vel.y * WALL_DAMP_3D; }
+            if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP_3D; }
+            if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP_3D; }
         }
         
         // Коллизии между сферами
@@ -555,7 +532,7 @@
         }
     }
     
-    // --- Общие датчики ---
+    // --- Датчики ---
     function handleOrientation(e) {
         if (!orientationGranted) return;
         if (e.beta !== null) beta = e.beta;
@@ -585,7 +562,7 @@
                 if (perm === 'granted') {
                     orientationGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
-                } else { statusDiv.innerHTML = "❌ Отказано в доступе к ориентации"; return; }
+                } else { statusDiv.innerHTML = "❌ Отказано в доступе"; return; }
             } catch(e) { console.warn(e); }
         } else {
             orientationGranted = true;
@@ -603,7 +580,7 @@
             motionGranted = true;
             window.addEventListener('devicemotion', handleMotion);
         }
-        statusDiv.innerHTML = "✅ Датчики активны! Поворачивайте и трясите телефон.";
+        statusDiv.innerHTML = "✅ Датчики активны! Поворачивайте и трясите.";
     }
     
     // --- Переключение режимов ---
@@ -611,22 +588,19 @@
     let anim2dId = null;
     function start2D() {
         if (anim2dId) cancelAnimationFrame(anim2dId);
-        function update2Dloop(now) {
+        let last2d = 0;
+        function loop2d(now) {
             if (!mode2dActive) return;
-            if (window._last2dTs === undefined) { window._last2dTs = now; requestAnimationFrame(update2Dloop); return; }
-            let dt = Math.min(0.033, (now - window._last2dTs)/1000);
+            if (!last2d) { last2d = now; requestAnimationFrame(loop2d); return; }
+            let dt = Math.min(0.033, (now - last2d)/1000);
             if (dt>0) update2DPhysics(dt);
-            window._last2dTs = now;
+            last2d = now;
             draw2D();
-            requestAnimationFrame(update2Dloop);
+            requestAnimationFrame(loop2d);
         }
-        anim2dId = requestAnimationFrame(update2Dloop);
+        anim2dId = requestAnimationFrame(loop2d);
     }
-    
-    function stop2D() {
-        if (anim2dId) cancelAnimationFrame(anim2dId);
-        anim2dId = null;
-    }
+    function stop2D() { if (anim2dId) cancelAnimationFrame(anim2dId); anim2dId = null; }
     
     const mode2dDiv = document.getElementById('mode2d');
     const mode3dDiv = document.getElementById('mode3d');
@@ -667,7 +641,7 @@
         }
     }
     
-    // Инициализация 2D
+    // Старт 2D
     particles2d = init2DParticles();
     start2D();
     resetBtn2d.addEventListener('click', () => { particles2d = init2DParticles(); });
@@ -694,7 +668,6 @@
         }, 500);
     }
     
-    // Адаптация canvas 2D
     function resizeCanvas2D() {
         let container = canvas2d.parentElement;
         let maxW = Math.min(600, container.clientWidth);
