@@ -283,6 +283,16 @@
             handleBoundaries2D();
         }
     }
+
+function lockOrientation() {
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').catch(e => console.warn('Не удалось заблокировать:', e));
+    }
+}
+// Запросим блокировку после любого жеста пользователя (например, после активации датчиков)
+document.getElementById('requestBtn')?.addEventListener('click', lockOrientation);
+// Или при старте, если разрешение уже было
+lockOrientation();
     
     function draw2D() {
         ctx.clearRect(0,0,width,height);
