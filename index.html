@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика кругов + гироскоп + усиленный акселерометр</title>
+    <title>Физика кругов + гироскоп + трение от ориентации</title>
     <style>
         * {
             margin: 0;
@@ -20,16 +20,18 @@
             align-items: center;
             font-family: system-ui, 'Segoe UI', monospace;
             padding: 12px;
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 700px;
+            max-width: 650px;
             width: 100%;
             background: #111827;
             border-radius: 2rem;
             padding: 1rem;
             box-shadow: 0 20px 35px -10px rgba(0,0,0,0.5);
             border: 1px solid #2d3a5e;
+            overflow: hidden;
         }
 
         canvas {
@@ -96,11 +98,6 @@
             margin-top: 12px;
             color: #94a3b8;
         }
-
-        @media (max-width: 550px) {
-            .info-panel { flex-direction: column; align-items: center; }
-            .sensor-data { justify-content: center; }
-        }
     </style>
 </head>
 <body>
@@ -131,33 +128,32 @@
         const resetBtn = document.getElementById('resetBtn');
         const statusDiv = document.getElementById('statusMsg');
 
-        // --- Параметры физики ---
+        // --- Размеры canvas ---
         let width = 600;
         let height = 500;
         canvas.width = width;
         canvas.height = height;
 
-        let forceX = 0;
-        let forceY = 0;
+        // --- Физические параметры ---
+        let forceX = 0, forceY = 0;
+        const GRAVITY_BASE = 950.0;           // пикселей/сек² при наклоне 90°
+        const ACCEL_SCALE = 180.0;             // чувствительность акселерометра
+        const ACCEL_BOOST = 1.8;               // множитель для сильных пиков
+
+        // НОВОЕ: трение, зависящее от нормальной силы
+        const BASE_FRICTION = 0.98;             // базовое воздушное трение (1 - нет, <1 - есть)
+        const NORMAL_FRICTION_FACTOR = 0.2;     // вклад трения от прижатия (0..1)
+        // Коэффициенты отскока (снижена прыгучесть)
+        const BOUNCE_DAMP = 0.85;               // отскок от стен
+        const COLLISION_ELASTIC = 0.55;         // упругость столкновений шаров
         
-        // Гравитация от наклона (масштаб: 950 пикселей/сек² при наклоне 90°)
-        const GRAVITY_BASE = 950.0;
-        // Сильно увеличенный коэффициент для акселерометра (было 55 -> теперь 180)
-        const ACCEL_SCALE = 180.0;
-        // Доп. множитель для сильных пиков (>5 м/с²)
-        const ACCEL_BOOST = 1.8;
-        
-        const AIR_DRAG = 0.995;
-        const BOUNCE_DAMP = 0.92;
-        const COLLISION_ELASTIC = 0.85;
-        const MIN_SPEED = 0.5;
+        const MIN_SPEED = 0.8;
         
         // --- Датчики ---
-        let beta = 0;       // наклон вперёд/назад
-        let gamma = 0;      // наклон влево/вправо (исправлено зеркалирование)
-        let rawAccX = 0, rawAccY = 0;
+        let beta = 0;          // наклон вперёд/назад
+        let gamma = 0;         // боковой наклон
         let filteredAccX = 0, filteredAccY = 0;
-        const ACC_FILTER = 0.3;   // чуть более отзывчивый фильтр
+        const ACC_FILTER = 0.3;
         
         // --- Частицы ---
         const PARTICLE_COUNT = 12;
@@ -165,35 +161,25 @@
         
         class Particle {
             constructor(x, y, r, vx = 0, vy = 0) {
-                this.x = x;
-                this.y = y;
-                this.r = r;
-                this.vx = vx;
-                this.vy = vy;
+                this.x = x; this.y = y; this.r = r;
+                this.vx = vx; this.vy = vy;
                 this.mass = r * r;
             }
         }
         
-        function initParticles(randomize = true) {
+        function initParticles() {
             const newParticles = [];
             const radii = [14, 12, 16, 10, 13, 15, 11, 14, 12, 13, 16, 10];
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 let r = radii[i % radii.length];
-                let overlap = true;
-                let tries = 0;
-                let x, y;
+                let overlap = true, tries = 0, x, y;
                 do {
                     overlap = false;
                     x = r + Math.random() * (width - 2 * r);
                     y = r + Math.random() * (height - 2 * r);
                     for (let p of newParticles) {
-                        const dx = p.x - x;
-                        const dy = p.y - y;
-                        const minDist = p.r + r;
-                        if (Math.hypot(dx, dy) < minDist) {
-                            overlap = true;
-                            break;
-                        }
+                        const dx = p.x - x, dy = p.y - y;
+                        if (Math.hypot(dx, dy) < p.r + r) { overlap = true; break; }
                     }
                     tries++;
                     if (tries > 500) break;
@@ -204,40 +190,32 @@
         }
         
         function resetSimulation() {
-            particles = initParticles(true);
+            particles = initParticles();
         }
         
-        // --- Коллизии ---
+        // --- Коллизии между шарами ---
         function handleCollisions() {
             for (let i = 0; i < particles.length; i++) {
-                for (let j = i + 1; j < particles.length; j++) {
-                    const p1 = particles[i];
-                    const p2 = particles[j];
-                    const dx = p2.x - p1.x;
-                    const dy = p2.y - p1.y;
+                for (let j = i+1; j < particles.length; j++) {
+                    const p1 = particles[i], p2 = particles[j];
+                    const dx = p2.x - p1.x, dy = p2.y - p1.y;
                     const dist = Math.hypot(dx, dy);
                     const minDist = p1.r + p2.r;
                     if (dist < minDist) {
                         const overlap = minDist - dist;
                         const angle = Math.atan2(dy, dx);
-                        const cos = Math.cos(angle);
-                        const sin = Math.sin(angle);
-                        const move1 = (overlap * (p2.mass / (p1.mass + p2.mass)));
-                        const move2 = (overlap * (p1.mass / (p1.mass + p2.mass)));
-                        p1.x -= move1 * cos;
-                        p1.y -= move1 * sin;
-                        p2.x += move2 * cos;
-                        p2.y += move2 * sin;
+                        const cos = Math.cos(angle), sin = Math.sin(angle);
+                        const move1 = overlap * (p2.mass / (p1.mass + p2.mass));
+                        const move2 = overlap * (p1.mass / (p1.mass + p2.mass));
+                        p1.x -= move1 * cos; p1.y -= move1 * sin;
+                        p2.x += move2 * cos; p2.y += move2 * sin;
                         
-                        const vx1 = p1.vx, vy1 = p1.vy;
-                        const vx2 = p2.vx, vy2 = p2.vy;
-                        const vrelx = vx2 - vx1;
-                        const vrely = vy2 - vy1;
+                        const vrelx = p2.vx - p1.vx, vrely = p2.vy - p1.vy;
                         const dot = vrelx * cos + vrely * sin;
                         if (dot < 0) {
                             const e = COLLISION_ELASTIC;
                             const m1 = p1.mass, m2 = p2.mass;
-                            const imp = (1 + e) * dot / ( (1/m1) + (1/m2) );
+                            const imp = (1 + e) * dot / ((1/m1) + (1/m2));
                             p1.vx += imp * cos / m1;
                             p1.vy += imp * sin / m1;
                             p2.vx -= imp * cos / m2;
@@ -248,6 +226,7 @@
             }
         }
         
+        // --- Границы ---
         function handleBoundaries() {
             for (let p of particles) {
                 if (p.x - p.r < 0) { p.x = p.r; p.vx = -p.vx * BOUNCE_DAMP; }
@@ -255,37 +234,65 @@
                 if (p.y - p.r < 0) { p.y = p.r; p.vy = -p.vy * BOUNCE_DAMP; }
                 if (p.y + p.r > height) { p.y = height - p.r; p.vy = -p.vy * BOUNCE_DAMP; }
                 
-                if (Math.abs(p.vx) < MIN_SPEED && Math.abs(p.vy) < MIN_SPEED && 
-                    ((p.x - p.r < 1) || (p.x + p.r > width-1) || (p.y - p.r < 1) || (p.y + p.r > height-1))) {
-                    if (p.x - p.r < 1) p.vx += 0.3;
-                    if (p.x + p.r > width-1) p.vx -= 0.3;
-                    if (p.y - p.r < 1) p.vy += 0.3;
-                    if (p.y + p.r > height-1) p.vy -= 0.3;
+                // антизалипание
+                if (Math.abs(p.vx) < MIN_SPEED && Math.abs(p.vy) < MIN_SPEED &&
+                    ((p.x - p.r < 2) || (p.x + p.r > width-2) || (p.y - p.r < 2) || (p.y + p.r > height-2))) {
+                    if (p.x - p.r < 2) p.vx += 0.4;
+                    if (p.x + p.r > width-2) p.vx -= 0.4;
+                    if (p.y - p.r < 2) p.vy += 0.4;
+                    if (p.y + p.r > height-2) p.vy -= 0.4;
                 }
             }
         }
         
-        // --- Сила от датчиков (исправлено направление gamma) ---
-        function updateForceFromSensors() {
-            // Гравитация от наклона: gamma инвертирована, чтобы левый наклон толкал влево
-            const radBeta = beta * Math.PI / 180;
-            const radGamma = gamma * Math.PI / 180;
-            // ИНВЕРСИЯ: умножаем на -1, чтобы левый наклон (gamma отрицательный) давал отрицательную силу X
-            let gravX = -GRAVITY_BASE * Math.sin(radGamma);
+        // --- Сила и трение (зависящее от ориентации) ---
+        function updateForceAndFriction(dt) {
+            // Коррекция зеркалирования при перевороте экраном вверх (beta > 90°)
+            let correctedGamma = gamma;
+            let correctedBeta = beta;
+            if (beta > 90) {
+                // При экране вверх инвертируем gamma, чтобы лево-право соответствовало
+                correctedGamma = -gamma;
+                // Также beta при перевороте >90, но сила по Y остаётся нормальной
+                // (ничего не меняем для beta, т.к. sin(beta) при beta>90 даёт отрицательное значение - это правильно)
+            }
+            
+            // Гравитация с учётом коррекции
+            const radBeta = correctedBeta * Math.PI / 180;
+            const radGamma = correctedGamma * Math.PI / 180;
+            let gravX = GRAVITY_BASE * Math.sin(radGamma);
             let gravY = GRAVITY_BASE * Math.sin(radBeta);
             
-            // Акселерометр: резкие движения
+            // Акселерометр
             let accForceX = filteredAccX * ACCEL_SCALE;
             let accForceY = filteredAccY * ACCEL_SCALE;
-            
-            // Усиление для пиков (если ускорение > 5 м/с², домножаем)
             if (Math.abs(filteredAccX) > 5) accForceX *= ACCEL_BOOST;
             if (Math.abs(filteredAccY) > 5) accForceY *= ACCEL_BOOST;
             
-            forceX = gravX + accForceX;
-            forceY = gravY + accForceY;
+            // Суммарная сила (ускорение)
+            let totalForceX = gravX + accForceX;
+            let totalForceY = gravY + accForceY;
             
-            // Отображение
+            // --- Трение, зависящее от нормальной силы ---
+            // Нормальная сила пропорциональна косинусу beta (положение экрана)
+            // При beta=0° (экран вверх) cos=1 -> max трение, при beta=180° (экран вниз) cos=-1 -> min трение, по модулю
+            const normalForce = Math.abs(Math.cos(radBeta));  // от 0 до 1
+            // Коэффициент трения скольжения: чем сильнее прижаты шары, тем быстрее теряют скорость
+            const slidingFriction = 1 - NORMAL_FRICTION_FACTOR * normalForce;
+            // Ограничиваем, чтобы не было отрицательного трения
+            const finalDrag = BASE_FRICTION * Math.min(1.0, Math.max(0.92, slidingFriction));
+            
+            // Применяем силу и трение ко всем шарам (трение умножает скорость на finalDrag)
+            for (let p of particles) {
+                p.vx += totalForceX * dt;
+                p.vy += totalForceY * dt;
+                p.vx *= finalDrag;
+                p.vy *= finalDrag;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+            }
+            
+            // Обновляем отображение (для UI)
             betaSpan.textContent = beta.toFixed(1);
             gammaSpan.textContent = gamma.toFixed(1);
             accXspan.textContent = filteredAccX.toFixed(2);
@@ -298,16 +305,7 @@
             let dt = Math.min(0.033, (nowMs - lastTimestamp) / 1000);
             if (dt <= 0) return;
             
-            updateForceFromSensors();
-            
-            for (let p of particles) {
-                p.vx += forceX * dt;
-                p.vy += forceY * dt;
-                p.vx *= AIR_DRAG;
-                p.vy *= AIR_DRAG;
-                p.x += p.vx * dt;
-                p.y += p.vy * dt;
-            }
+            updateForceAndFriction(dt);
             
             for (let iter = 0; iter < 3; iter++) {
                 handleCollisions();
@@ -317,6 +315,7 @@
             lastTimestamp = nowMs;
         }
         
+        // --- Отрисовка ---
         function draw() {
             ctx.clearRect(0, 0, width, height);
             ctx.fillStyle = "#0f172a";
@@ -351,16 +350,14 @@
             }
             ctx.shadowBlur = 0;
             
-            // стрелка силы
-            const centerX = width - 35;
-            const centerY = 35;
-            const arrowLen = Math.min(35, Math.hypot(forceX, forceY) / 20);
+            // Стрелка силы
+            const centerX = width - 35, centerY = 35;
+            const totalForce = Math.hypot(forceX, forceY);
+            const arrowLen = Math.min(35, totalForce / 25);
             const angleForce = Math.atan2(forceY, forceX);
             ctx.beginPath();
             ctx.moveTo(centerX, centerY);
-            const tipX = centerX + Math.cos(angleForce) * arrowLen;
-            const tipY = centerY + Math.sin(angleForce) * arrowLen;
-            ctx.lineTo(tipX, tipY);
+            ctx.lineTo(centerX + Math.cos(angleForce) * arrowLen, centerY + Math.sin(angleForce) * arrowLen);
             ctx.lineWidth = 2.5;
             ctx.strokeStyle = "#ffaa44";
             ctx.stroke();
@@ -370,6 +367,7 @@
             ctx.fill();
         }
         
+        // --- Анимация ---
         let animFrame;
         function animate(time) {
             physicsStep(time);
@@ -378,8 +376,7 @@
         }
         
         // --- Датчики ---
-        let orientationGranted = false;
-        let motionGranted = false;
+        let orientationGranted = false, motionGranted = false;
         
         function handleOrientation(event) {
             if (!orientationGranted) return;
@@ -390,10 +387,10 @@
         function handleMotion(event) {
             if (!motionGranted) return;
             if (event.acceleration) {
-                rawAccX = event.acceleration.x || 0;
-                rawAccY = event.acceleration.y || 0;
-                filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawAccX * ACC_FILTER;
-                filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawAccY * ACC_FILTER;
+                let rawX = event.acceleration.x || 0;
+                let rawY = event.acceleration.y || 0;
+                filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawX * ACC_FILTER;
+                filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawY * ACC_FILTER;
             }
         }
         
@@ -404,8 +401,8 @@
                     if (perm === 'granted') {
                         orientationGranted = true;
                         window.addEventListener('deviceorientation', handleOrientation);
-                        statusDiv.innerHTML = "✅ Ориентация разрешена. Наклоняйте телефон!";
-                    } else { statusDiv.innerHTML = "❌ Отказано в доступе к ориентации"; }
+                        statusDiv.innerHTML = "✅ Ориентация разрешена";
+                    } else { statusDiv.innerHTML = "❌ Отказано в доступе"; return; }
                 } catch(e) { console.warn(e); }
             } else {
                 orientationGranted = true;
@@ -418,13 +415,13 @@
                     if (motionPerm === 'granted') {
                         motionGranted = true;
                         window.addEventListener('devicemotion', handleMotion);
-                        if (!statusDiv.innerHTML.includes("акселерометр")) statusDiv.innerHTML += " + акселерометр";
+                        statusDiv.innerHTML += " + акселерометр";
                     }
                 } catch(e) { console.warn(e); }
             } else {
                 motionGranted = true;
                 window.addEventListener('devicemotion', handleMotion);
-                statusDiv.innerHTML = "🎉 Датчики активны! Трясите телефон — шары отреагируют";
+                statusDiv.innerHTML = "🎉 Датчики активны! Трясите телефон";
             }
         }
         
@@ -438,6 +435,7 @@
             requestBtn.style.display = 'none';
         });
         
+        // Android - автоактивация
         if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
             setTimeout(() => {
                 if (!orientationGranted && !motionGranted) {
@@ -445,24 +443,27 @@
                     motionGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
                     window.addEventListener('devicemotion', handleMotion);
-                    statusDiv.innerHTML = "📡 Датчики активны (Android). Наклоняйте и трясите!";
+                    statusDiv.innerHTML = "📡 Датчики активны (Android)";
                     requestBtn.style.display = 'none';
                 }
             }, 500);
         }
         
         resetBtn.addEventListener('click', resetSimulation);
-        
-        particles = initParticles(true);
+        particles = initParticles();
         animate(performance.now());
         
-        function resizeCanvas() {
-            const container = canvas.parentElement;
-            const maxW = Math.min(600, container.clientWidth);
-            canvas.style.width = `${maxW}px`;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        // Для обновления forceX, forceY в стрелке (используем последние значения)
+        setInterval(() => {
+            if (orientationGranted) {
+                // просто сохраняем текущие силы для отображения
+                let radBeta = beta * Math.PI/180;
+                let radGamma = gamma * Math.PI/180;
+                if (beta > 90) radGamma = -radGamma;
+                forceX = GRAVITY_BASE * Math.sin(radGamma) + filteredAccX * ACCEL_SCALE;
+                forceY = GRAVITY_BASE * Math.sin(radBeta) + filteredAccY * ACCEL_SCALE;
+            }
+        }, 50);
     })();
 </script>
 </body>
