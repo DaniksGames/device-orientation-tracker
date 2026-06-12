@@ -2,341 +2,542 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Ориентация телефона + отладка</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Физика кругов с датчиками телефона</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; transition: background 0.2s, color 0.2s; }
-        :root { --bg: #f5f7fb; --card: #fff; --text: #1e293b; --border: #e2e8f0; --btn: #3b82f6; }
-        body.dark { --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; --btn: #3b82f6; }
-        body { font-family: system-ui; background: var(--bg); color: var(--text); padding: 1rem; }
-        .container { max-width: 550px; margin: auto; }
-        .card { background: var(--card); border-radius: 2rem; padding: 1.5rem; border: 1px solid var(--border); }
-        h1 { display: flex; justify-content: space-between; }
-        .theme-toggle { background: var(--card); border: 1px solid var(--border); border-radius: 2rem; padding: 0.4rem 0.8rem; cursor: pointer; }
-        .sensor-panel { background: var(--bg); border-radius: 1.5rem; padding: 1rem; margin: 1rem 0; border: 1px solid var(--border); }
-        .data-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed var(--border); }
-        .data-value { font-family: monospace; font-weight: bold; background: var(--card); padding: 0.1rem 0.6rem; border-radius: 1rem; }
-        button { background: var(--btn); color: white; border: none; padding: 0.8rem; width: 100%; border-radius: 2rem; margin: 0.5rem 0; cursor: pointer; }
-        .status { background: rgba(59,130,246,0.1); border-left: 3px solid var(--btn); padding: 0.5rem; border-radius: 1rem; font-size: 0.8rem; margin-bottom: 1rem; }
-        .footnote { font-size: 0.7rem; text-align: center; margin-top: 1rem; color: var(--text); opacity: 0.7; }
-        pre { background: var(--card); padding: 0.5rem; border-radius: 0.8rem; overflow-x: auto; font-size: 0.7rem; margin-top: 1rem; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #0a0f1e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: system-ui, 'Segoe UI', monospace;
+            padding: 12px;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background: #111827;
+            border-radius: 2rem;
+            padding: 1rem;
+            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.5);
+            border: 1px solid #2d3a5e;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 1.5rem;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+            width: 100%;
+            height: auto;
+            cursor: pointer;
+        }
+
+        .info-panel {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+            background: #0f172ad9;
+            backdrop-filter: blur(4px);
+            padding: 10px 14px;
+            border-radius: 2rem;
+            color: #cbd5e6;
+        }
+
+        .sensor-data {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        .sensor-data span {
+            color: #7dd3fc;
+        }
+
+        button {
+            background: #3b82f6;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 3rem;
+            font-weight: bold;
+            color: white;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 1px 3px black;
+        }
+
+        button:active {
+            transform: scale(0.96);
+        }
+
+        .status {
+            background: #1e2a3a;
+            border-radius: 2rem;
+            padding: 6px 12px;
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 12px;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 550px) {
+            .info-panel { flex-direction: column; align-items: center; }
+            .sensor-data { justify-content: center; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="card">
-        <h1>📱 Ориентация <button class="theme-toggle" id="themeToggle">🌙</button></h1>
-        <div class="status" id="statusMsg">⏳ Нажмите кнопку и разрешите доступ</div>
+    <canvas id="physicsCanvas" width="600" height="500" style="width:100%; height:auto; max-width:600px; aspect-ratio:600/500"></canvas>
 
-        <div class="sensor-panel">
-            <div><strong>🧭 DeviceOrientation</strong></div>
-            <div class="data-row"><span>🔄 α (компас):</span><span class="data-value" id="alpha">—</span></div>
-            <div class="data-row"><span>📐 β (наклон X):</span><span class="data-value" id="beta">—</span></div>
-            <div class="data-row"><span>📏 γ (наклон Y):</span><span class="data-value" id="gamma">—</span></div>
+    <div class="info-panel">
+        <div class="sensor-data">
+            📐 наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°
+            &nbsp;| ⚡ аксель: <span id="accXval">0.00</span> <span id="accYval">0.00</span>
         </div>
-
-        <div class="sensor-panel">
-            <div><strong>⚡ DeviceMotion (акселерометр)</strong></div>
-            <div class="data-row"><span>🎚️ Ускорение X:</span><span class="data-value" id="accX">—</span></div>
-            <div class="data-row"><span>🎚️ Ускорение Y:</span><span class="data-value" id="accY">—</span></div>
-            <div class="data-row"><span>🎚️ Ускорение Z:</span><span class="data-value" id="accZ">—</span></div>
-        </div>
-
-        <button id="requestBtn">🔘 Разрешить доступ к датчикам</button>
-        <div class="footnote">
-            ✔️ Требуется HTTPS или localhost<br>
-            📌 На iOS: настройки Safari → Motion & Orientation Access → ВКЛ<br>
-            📌 На Android: иногда нужно слегка шевельнуть телефон
-        </div>
-        <pre id="debugLog">📡 Логи будут здесь...</pre>
+        <button id="resetBtn">🌀 Сбросить шарики</button>
+    </div>
+    <div class="status" id="statusMsg">
+        ⏳ Разрешите доступ к датчикам, чтобы шарики ожили
     </div>
 </div>
 
 <script>
     (function() {
-        // DOM элементы
-        const alphaSpan = document.getElementById('alpha');
-        const betaSpan = document.getElementById('beta');
-        const gammaSpan = document.getElementById('gamma');
-        const accXSpan = document.getElementById('accX');
-        const accYSpan = document.getElementById('accY');
-        const accZSpan = document.getElementById('accZ');
-        const requestBtn = document.getElementById('requestBtn');
+        // --- Элементы ---
+        const canvas = document.getElementById('physicsCanvas');
+        const ctx = canvas.getContext('2d');
+        const betaSpan = document.getElementById('betaVal');
+        const gammaSpan = document.getElementById('gammaVal');
+        const accXspan = document.getElementById('accXval');
+        const accYspan = document.getElementById('accYval');
+        const resetBtn = document.getElementById('resetBtn');
         const statusDiv = document.getElementById('statusMsg');
-        const debugPre = document.getElementById('debugLog');
-        const themeToggle = document.getElementById('themeToggle');
 
-        // Функция логирования в консоль и на экран
-        function log(msg) {
-            console.log(msg);
-            const p = document.createElement('div');
-            p.textContent = new Date().toLocaleTimeString() + ' ' + msg;
-            debugPre.appendChild(p);
-            debugPre.scrollTop = debugPre.scrollHeight;
-            if (debugPre.children.length > 20) debugPre.removeChild(debugPre.children[0]);
+        // --- Параметры физики ---
+        let width = 600;
+        let height = 500;
+        canvas.width = width;
+        canvas.height = height;
+
+        // Глобальный вектор силы (пиксели/сек²)
+        let forceX = 0;
+        let forceY = 0;
+        // Коэффициент гравитации от наклона (масштаб: 800 пикселей/сек² при max наклоне 90° -> 9.8 м/с², но игровая логика)
+        const GRAVITY_BASE = 850.0;      // пикселей/сек² при наклоне 90°
+        // Масштаб линейного ускорения (чтобы резкие движения заметно влияли)
+        const ACCEL_SCALE = 55.0;         // перевод м/с² в пиксели/сек²
+        
+        // Трение воздуха (сохраняет энергию, но стабилизирует)
+        const AIR_DRAG = 0.995;
+        // Коэффициент отскока от стен
+        const BOUNCE_DAMP = 0.92;
+        // Коэффициент упругости при столкновении шаров
+        const COLLISION_ELASTIC = 0.85;
+        
+        // Минимальная скорость для остановки (обрезка)
+        const MIN_SPEED = 0.5;
+        
+        // --- Данные с датчиков ---
+        let beta = 0;       // наклон вперёд/назад
+        let gamma = 0;      // наклон влево/вправо
+        let accelX = 0;     // линейное ускорение X (м/с²)
+        let accelY = 0;     // линейное ускорение Y
+        
+        // Фильтр для акселерометра (простой low-pass)
+        let filteredAccX = 0;
+        let filteredAccY = 0;
+        const ACC_FILTER = 0.25;
+        
+        // --- Частицы (круги) ---
+        const PARTICLE_COUNT = 12;
+        let particles = [];
+        
+        class Particle {
+            constructor(x, y, r, vx = 0, vy = 0) {
+                this.x = x;
+                this.y = y;
+                this.r = r;
+                this.vx = vx;
+                this.vy = vy;
+                this.mass = r * r;   // масса пропорциональна площади (для реалистичных столкновений)
+            }
         }
-
-        // Тёмная тема
-        function setTheme(theme) {
-            if (theme === 'dark') { document.body.classList.add('dark'); localStorage.setItem('theme', 'dark'); themeToggle.innerHTML = '☀️'; }
-            else { document.body.classList.remove('dark'); localStorage.setItem('theme', 'light'); themeToggle.innerHTML = '🌙'; }
+        
+        function initParticles(randomize = true) {
+            const newParticles = [];
+            const radii = [14, 12, 16, 10, 13, 15, 11, 14, 12, 13, 16, 10];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                let r = radii[i % radii.length];
+                let overlap = true;
+                let tries = 0;
+                let x, y;
+                // Размещаем без перекрытий
+                do {
+                    overlap = false;
+                    x = r + Math.random() * (width - 2 * r);
+                    y = r + Math.random() * (height - 2 * r);
+                    for (let p of newParticles) {
+                        const dx = p.x - x;
+                        const dy = p.y - y;
+                        const minDist = p.r + r;
+                        if (Math.hypot(dx, dy) < minDist) {
+                            overlap = true;
+                            break;
+                        }
+                    }
+                    tries++;
+                    if (tries > 500) break;
+                } while (overlap);
+                newParticles.push(new Particle(x, y, r, 0, 0));
+            }
+            return newParticles;
         }
-        const saved = localStorage.getItem('theme');
-        if (saved) setTheme(saved);
-        else setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        themeToggle.onclick = () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
-
-        // Обработчики датчиков
-        let orientationActive = false;
-        let motionActive = false;
-
+        
+        function resetSimulation() {
+            particles = initParticles(true);
+        }
+        
+        // --- Коллизии между частицами (импульсное разрешение) ---
+        function handleCollisions() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p1 = particles[i];
+                    const p2 = particles[j];
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = p1.r + p2.r;
+                    if (dist < minDist) {
+                        const overlap = minDist - dist;
+                        const angle = Math.atan2(dy, dx);
+                        const cos = Math.cos(angle);
+                        const sin = Math.sin(angle);
+                        // Сдвиг позиций
+                        const move1 = (overlap * (p2.mass / (p1.mass + p2.mass)));
+                        const move2 = (overlap * (p1.mass / (p1.mass + p2.mass)));
+                        p1.x -= move1 * cos;
+                        p1.y -= move1 * sin;
+                        p2.x += move2 * cos;
+                        p2.y += move2 * sin;
+                        
+                        // Скорости в локальной системе
+                        const vx1 = p1.vx, vy1 = p1.vy;
+                        const vx2 = p2.vx, vy2 = p2.vy;
+                        const vrelx = vx2 - vx1;
+                        const vrely = vy2 - vy1;
+                        const dot = vrelx * cos + vrely * sin;
+                        if (dot < 0) {
+                            const e = COLLISION_ELASTIC;
+                            const m1 = p1.mass, m2 = p2.mass;
+                            const imp = (1 + e) * dot / ( (1/m1) + (1/m2) );
+                            p1.vx += imp * cos / m1;
+                            p1.vy += imp * sin / m1;
+                            p2.vx -= imp * cos / m2;
+                            p2.vy -= imp * sin / m2;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // --- Границы с учётом радиуса ---
+        function handleBoundaries() {
+            for (let p of particles) {
+                // Левый/правый край
+                if (p.x - p.r < 0) {
+                    p.x = p.r;
+                    p.vx = -p.vx * BOUNCE_DAMP;
+                }
+                if (p.x + p.r > width) {
+                    p.x = width - p.r;
+                    p.vx = -p.vx * BOUNCE_DAMP;
+                }
+                // Верх/низ
+                if (p.y - p.r < 0) {
+                    p.y = p.r;
+                    p.vy = -p.vy * BOUNCE_DAMP;
+                }
+                if (p.y + p.r > height) {
+                    p.y = height - p.r;
+                    p.vy = -p.vy * BOUNCE_DAMP;
+                }
+                // фикс залипания на границах (если скорость слишком мала)
+                if (Math.abs(p.vx) < MIN_SPEED && Math.abs(p.vy) < MIN_SPEED && 
+                    ((p.x - p.r < 1) || (p.x + p.r > width-1) || (p.y - p.r < 1) || (p.y + p.r > height-1))) {
+                    // добавим небольшой толчок, чтоб не вязли
+                    if (p.x - p.r < 1) p.vx += 0.2;
+                    if (p.x + p.r > width-1) p.vx -= 0.2;
+                    if (p.y - p.r < 1) p.vy += 0.2;
+                    if (p.y + p.r > height-1) p.vy -= 0.2;
+                }
+            }
+        }
+        
+        // --- Обновление сил от датчиков ---
+        function updateForceFromSensors() {
+            // гравитация от наклона (beta, gamma в градусах)
+            // Сила в плоскости экрана: компоненты пропорциональны sin(угла)
+            const radBeta = beta * Math.PI / 180;
+            const radGamma = gamma * Math.PI / 180;
+            // при наклоне телефона сила "вниз" в системе координат экрана:
+            // gamma - боковой наклон (влево/вправо) -> сила по X
+            // beta - наклон вперед/назад -> сила по Y
+            let gravX = GRAVITY_BASE * Math.sin(radGamma);
+            let gravY = GRAVITY_BASE * Math.sin(radBeta);
+            
+            // Добавляем линейное ускорение (резкие движения) 
+            // filteredAccX, filteredAccY уже в м/с², переводим в пиксели/сек²
+            let accForceX = filteredAccX * ACCEL_SCALE;
+            let accForceY = filteredAccY * ACCEL_SCALE;
+            
+            forceX = gravX + accForceX;
+            forceY = gravY + accForceY;
+            
+            // Обновление UI
+            betaSpan.textContent = beta.toFixed(1);
+            gammaSpan.textContent = gamma.toFixed(1);
+            accXspan.textContent = filteredAccX.toFixed(2);
+            accYspan.textContent = filteredAccY.toFixed(2);
+        }
+        
+        // --- Физический шаг (dt в секундах) ---
+        let lastTimestamp = 0;
+        function physicsStep(nowMs) {
+            if (!lastTimestamp) {
+                lastTimestamp = nowMs;
+                return;
+            }
+            let dt = Math.min(0.033, (nowMs - lastTimestamp) / 1000); // макс 33 мс
+            if (dt <= 0) return;
+            
+            // обновить силу на основе текущих показаний датчиков
+            updateForceFromSensors();
+            
+            // Применяем силу ко всем частицам (F = m*a, a = F/m, но масса учитывается, ускорение = force / mass)
+            // Чтобы сохранить физическую достоверность: ускорение = force / mass (но масса разная).
+            // Для простоты управления: хотим, чтобы сила не зависела от массы, т.е. все шары получают одинаковое ускорение?
+            // По классике: a = F / m. Если F = масса * a_gravity, то ускорение от гравитации одинаковое для всех масс. 
+            // Поскольку гравитация в реальности дает одинаковое ускорение, мы должны делить силу на массу.
+            // У нас forceX/forceY - полная сила (пиксели/сек² * массу? Нет, мы задали GRAVITY_BASE как ускорение, а accelScale - ускорение.
+            // Поэтому forceX,forceY - это просто ускорение (пиксели/сек²). Тогда добавляем к скорости напрямую.
+            for (let p of particles) {
+                p.vx += forceX * dt;
+                p.vy += forceY * dt;
+                // трение воздуха
+                p.vx *= AIR_DRAG;
+                p.vy *= AIR_DRAG;
+                // обновление позиции
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+            }
+            
+            // Разрешить столкновения (несколько итераций для точности)
+            for (let iter = 0; iter < 3; iter++) {
+                handleCollisions();
+                handleBoundaries();
+            }
+            
+            lastTimestamp = nowMs;
+        }
+        
+        // --- Отрисовка canvas ---
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            // Рисуем фон с лёгкой сеткой
+            ctx.fillStyle = "#0f172a";
+            ctx.fillRect(0, 0, width, height);
+            
+            // сетка для ориентира
+            ctx.strokeStyle = "#2d3a5e";
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < width; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i % height);
+                ctx.lineTo(width, i % height);
+                ctx.stroke();
+            }
+            
+            // тени для шаров
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            
+            for (let p of particles) {
+                // градиент
+                const grad = ctx.createRadialGradient(p.x - 3, p.y - 3, 3, p.x, p.y, p.r);
+                grad.addColorStop(0, '#fbbf24');
+                grad.addColorStop(1, '#ea580c');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = "#ffffff80";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            
+            // небольшой индикатор направления силы
+            const centerX = width - 35;
+            const centerY = 35;
+            const arrowLen = Math.min(30, Math.hypot(forceX, forceY) / 25);
+            const angleForce = Math.atan2(forceY, forceX);
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            const tipX = centerX + Math.cos(angleForce) * arrowLen;
+            const tipY = centerY + Math.sin(angleForce) * arrowLen;
+            ctx.lineTo(tipX, tipY);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#ffaa44";
+            ctx.stroke();
+            ctx.fillStyle = "#ffaa44";
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 3, 0, 2*Math.PI);
+            ctx.fill();
+        }
+        
+        // --- Анимация (requestAnimationFrame) ---
+        let animFrame;
+        function animate(time) {
+            physicsStep(time);
+            draw();
+            animFrame = requestAnimationFrame(animate);
+        }
+        
+        // --- Датчики: DeviceOrientation (beta, gamma) и DeviceMotion (линейное ускорение) ---
+        let orientationGranted = false;
+        let motionGranted = false;
+        
         function handleOrientation(event) {
-            log(`🔔 deviceorientation: α=${event.alpha}, β=${event.beta}, γ=${event.gamma}`);
-            // ВАЖНО: если значения null — выводим прочерки
-            alphaSpan.textContent = (event.alpha !== null && event.alpha !== undefined) ? event.alpha.toFixed(1) + "°" : "❌ null";
-            betaSpan.textContent  = (event.beta  !== null && event.beta  !== undefined) ? event.beta.toFixed(1)  + "°" : "❌ null";
-            gammaSpan.textContent = (event.gamma !== null && event.gamma !== undefined) ? event.gamma.toFixed(1) + "°" : "❌ null";
-            if (!orientationActive && (event.alpha !== null || event.beta !== null || event.gamma !== null)) {
-                orientationActive = true;
-                updateStatus("✅ Данные ориентации поступают!");
-            } else if (!orientationActive && event.alpha === null && event.beta === null && event.gamma === null) {
-                updateStatus("⚠️ Событие приходит, но все поля null. Проверьте настройки доступа к движению в системе.", true);
-            }
+            if (!orientationGranted) return;
+            // beta: -180..180, gamma: -90..90
+            if (event.beta !== null) beta = event.beta;
+            if (event.gamma !== null) gamma = event.gamma;
+            // alpha не используем
         }
-
+        
         function handleMotion(event) {
-            const acc = event.acceleration;
-            if (acc && acc.x !== null) {
-                accXSpan.textContent = acc.x.toFixed(2);
-                accYSpan.textContent = acc.y.toFixed(2);
-                accZSpan.textContent = acc.z.toFixed(2);
-                if (!motionActive) { motionActive = true; log("✅ Акселерометр работает"); }
-            } else {
-                accXSpan.textContent = "—";
-                accYSpan.textContent = "—";
-                accZSpan.textContent = "—";
+            if (!motionGranted) return;
+            // линейное ускорение (исключая гравитацию)
+            if (event.acceleration) {
+                let rawX = event.acceleration.x || 0;
+                let rawY = event.acceleration.y || 0;
+                // фильтр low-pass
+                filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawX * ACC_FILTER;
+                filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawY * ACC_FILTER;
+                accelX = filteredAccX;
+                accelY = filteredAccY;
             }
         }
-
-        function updateStatus(msg, isError = false) {
-            statusDiv.innerHTML = msg;
-            statusDiv.style.borderLeftColor = isError ? '#ef4444' : '#3b82f6';
-            statusDiv.style.background = isError ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
-            log(msg);
-        }
-
-        function startOrientation() {
-            window.addEventListener('deviceorientation', handleOrientation);
-            log("Подписались на deviceorientation");
-        }
-
-        function startMotion() {
-            window.addEventListener('devicemotion', handleMotion);
-            log("Подписались на devicemotion");
-        }
-
-        async function requestAccess() {
-            // Сначала пробуем DeviceOrientation (iOS требует разрешение)
+        
+        // --- Запрос разрешений для iOS/Android ---
+        async function requestSensors() {
+            // DeviceOrientation
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS
                 try {
                     const perm = await DeviceOrientationEvent.requestPermission();
                     if (perm === 'granted') {
-                        startOrientation();
-                        requestBtn.style.display = 'none';
-                        updateStatus("✅ Доступ к ориентации разрешён (iOS). Если значения null – проверьте настройки Safari → Motion & Orientation Access.");
+                        orientationGranted = true;
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        statusDiv.innerHTML = "✅ Ориентация разрешена. Теперь наклоняйте телефон!";
                     } else {
-                        updateStatus("❌ Разрешение не дано", true);
-                        return;
+                        statusDiv.innerHTML = "❌ Отказано в доступе к ориентации";
                     }
-                } catch (err) {
-                    updateStatus("Ошибка запроса: " + err.message, true);
-                    return;
-                }
+                } catch(e) { console.warn(e); statusDiv.innerHTML = "Ошибка запроса ориентации"; }
             } else {
-                // Android / другие – сразу стартуем
-                startOrientation();
-                requestBtn.style.display = 'none';
-                updateStatus("✅ Подписались на датчики (Android). Если значения null – попробуйте слегка повернуть телефон.");
+                // Android/другие
+                orientationGranted = true;
+                window.addEventListener('deviceorientation', handleOrientation);
             }
-
-            // Запрос на DeviceMotion (для акселерометра) – на iOS тоже нужно отдельное разрешение?
-            // На iOS, если разрешили DeviceOrientation, то Motion обычно тоже доступен. Но бывают нюансы.
+            
+            // DeviceMotion (линейное ускорение)
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
-                    await DeviceMotionEvent.requestPermission();
-                    startMotion();
-                    log("Разрешение на DeviceMotion получено");
-                } catch(e) { log("DeviceMotion permission not granted: " + e.message); }
-            } else {
-                startMotion();
-            }
-        }
-
-        requestBtn.addEventListener('click', requestAccess);
-
-        // На Android без кнопки не стартуем (чтобы не нарушать политику iOS)
-        updateStatus("📱 Нажмите кнопку и при необходимости разрешите доступ");
-    })();
-</script>
-</body>
-</html>        .footnote { font-size: 0.7rem; text-align: center; margin-top: 1rem; color: var(--text); opacity: 0.7; }
-        pre { background: var(--card); padding: 0.5rem; border-radius: 0.8rem; overflow-x: auto; font-size: 0.7rem; margin-top: 1rem; }
-    </style>
-</head>
-<body>
-<div class="container">
-    <div class="card">
-        <h1>📱 Ориентация <button class="theme-toggle" id="themeToggle">🌙</button></h1>
-        <div class="status" id="statusMsg">⏳ Нажмите кнопку и разрешите доступ</div>
-
-        <div class="sensor-panel">
-            <div><strong>🧭 DeviceOrientation</strong></div>
-            <div class="data-row"><span>🔄 α (компас):</span><span class="data-value" id="alpha">—</span></div>
-            <div class="data-row"><span>📐 β (наклон X):</span><span class="data-value" id="beta">—</span></div>
-            <div class="data-row"><span>📏 γ (наклон Y):</span><span class="data-value" id="gamma">—</span></div>
-        </div>
-
-        <div class="sensor-panel">
-            <div><strong>⚡ DeviceMotion (акселерометр)</strong></div>
-            <div class="data-row"><span>🎚️ Ускорение X:</span><span class="data-value" id="accX">—</span></div>
-            <div class="data-row"><span>🎚️ Ускорение Y:</span><span class="data-value" id="accY">—</span></div>
-            <div class="data-row"><span>🎚️ Ускорение Z:</span><span class="data-value" id="accZ">—</span></div>
-        </div>
-
-        <button id="requestBtn">🔘 Разрешить доступ к датчикам</button>
-        <div class="footnote">
-            ✔️ Требуется HTTPS или localhost<br>
-            📌 На iOS: настройки Safari → Motion & Orientation Access → ВКЛ<br>
-            📌 На Android: иногда нужно слегка шевельнуть телефон
-        </div>
-        <pre id="debugLog">📡 Логи будут здесь...</pre>
-    </div>
-</div>
-
-<script>
-    (function() {
-        // DOM элементы
-        const alphaSpan = document.getElementById('alpha');
-        const betaSpan = document.getElementById('beta');
-        const gammaSpan = document.getElementById('gamma');
-        const accXSpan = document.getElementById('accX');
-        const accYSpan = document.getElementById('accY');
-        const accZSpan = document.getElementById('accZ');
-        const requestBtn = document.getElementById('requestBtn');
-        const statusDiv = document.getElementById('statusMsg');
-        const debugPre = document.getElementById('debugLog');
-        const themeToggle = document.getElementById('themeToggle');
-
-        // Функция логирования в консоль и на экран
-        function log(msg) {
-            console.log(msg);
-            const p = document.createElement('div');
-            p.textContent = new Date().toLocaleTimeString() + ' ' + msg;
-            debugPre.appendChild(p);
-            debugPre.scrollTop = debugPre.scrollHeight;
-            if (debugPre.children.length > 20) debugPre.removeChild(debugPre.children[0]);
-        }
-
-        // Тёмная тема
-        function setTheme(theme) {
-            if (theme === 'dark') { document.body.classList.add('dark'); localStorage.setItem('theme', 'dark'); themeToggle.innerHTML = '☀️'; }
-            else { document.body.classList.remove('dark'); localStorage.setItem('theme', 'light'); themeToggle.innerHTML = '🌙'; }
-        }
-        const saved = localStorage.getItem('theme');
-        if (saved) setTheme(saved);
-        else setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        themeToggle.onclick = () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
-
-        // Обработчики датчиков
-        let orientationActive = false;
-        let motionActive = false;
-
-        function handleOrientation(event) {
-            log(`🔔 deviceorientation: α=${event.alpha}, β=${event.beta}, γ=${event.gamma}`);
-            // ВАЖНО: если значения null — выводим прочерки
-            alphaSpan.textContent = (event.alpha !== null && event.alpha !== undefined) ? event.alpha.toFixed(1) + "°" : "❌ null";
-            betaSpan.textContent  = (event.beta  !== null && event.beta  !== undefined) ? event.beta.toFixed(1)  + "°" : "❌ null";
-            gammaSpan.textContent = (event.gamma !== null && event.gamma !== undefined) ? event.gamma.toFixed(1) + "°" : "❌ null";
-            if (!orientationActive && (event.alpha !== null || event.beta !== null || event.gamma !== null)) {
-                orientationActive = true;
-                updateStatus("✅ Данные ориентации поступают!");
-            } else if (!orientationActive && event.alpha === null && event.beta === null && event.gamma === null) {
-                updateStatus("⚠️ Событие приходит, но все поля null. Проверьте настройки доступа к движению в системе.", true);
-            }
-        }
-
-        function handleMotion(event) {
-            const acc = event.acceleration;
-            if (acc && acc.x !== null) {
-                accXSpan.textContent = acc.x.toFixed(2);
-                accYSpan.textContent = acc.y.toFixed(2);
-                accZSpan.textContent = acc.z.toFixed(2);
-                if (!motionActive) { motionActive = true; log("✅ Акселерометр работает"); }
-            } else {
-                accXSpan.textContent = "—";
-                accYSpan.textContent = "—";
-                accZSpan.textContent = "—";
-            }
-        }
-
-        function updateStatus(msg, isError = false) {
-            statusDiv.innerHTML = msg;
-            statusDiv.style.borderLeftColor = isError ? '#ef4444' : '#3b82f6';
-            statusDiv.style.background = isError ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
-            log(msg);
-        }
-
-        function startOrientation() {
-            window.addEventListener('deviceorientation', handleOrientation);
-            log("Подписались на deviceorientation");
-        }
-
-        function startMotion() {
-            window.addEventListener('devicemotion', handleMotion);
-            log("Подписались на devicemotion");
-        }
-
-        async function requestAccess() {
-            // Сначала пробуем DeviceOrientation (iOS требует разрешение)
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const perm = await DeviceOrientationEvent.requestPermission();
-                    if (perm === 'granted') {
-                        startOrientation();
-                        requestBtn.style.display = 'none';
-                        updateStatus("✅ Доступ к ориентации разрешён (iOS). Если значения null – проверьте настройки Safari → Motion & Orientation Access.");
-                    } else {
-                        updateStatus("❌ Разрешение не дано", true);
-                        return;
+                    const motionPerm = await DeviceMotionEvent.requestPermission();
+                    if (motionPerm === 'granted') {
+                        motionGranted = true;
+                        window.addEventListener('devicemotion', handleMotion);
+                        if (statusDiv.innerHTML.includes("Ориентация")) statusDiv.innerHTML += " + акселерометр";
+                        else statusDiv.innerHTML = "✅ Акселерометр активен, трясите телефон!";
                     }
-                } catch (err) {
-                    updateStatus("Ошибка запроса: " + err.message, true);
-                    return;
-                }
+                } catch(e) { console.warn(e); }
             } else {
-                // Android / другие – сразу стартуем
-                startOrientation();
-                requestBtn.style.display = 'none';
-                updateStatus("✅ Подписались на датчики (Android). Если значения null – попробуйте слегка повернуть телефон.");
-            }
-
-            // Запрос на DeviceMotion (для акселерометра) – на iOS тоже нужно отдельное разрешение?
-            // На iOS, если разрешили DeviceOrientation, то Motion обычно тоже доступен. Но бывают нюансы.
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                try {
-                    await DeviceMotionEvent.requestPermission();
-                    startMotion();
-                    log("Разрешение на DeviceMotion получено");
-                } catch(e) { log("DeviceMotion permission not granted: " + e.message); }
-            } else {
-                startMotion();
+                motionGranted = true;
+                window.addEventListener('devicemotion', handleMotion);
+                statusDiv.innerHTML = "🎉 Датчики готовы! Шарики реагируют на наклон и встряхивание.";
             }
         }
-
-        requestBtn.addEventListener('click', requestAccess);
-
-        // На Android без кнопки не стартуем (чтобы не нарушать политику iOS)
-        updateStatus("📱 Нажмите кнопку и при необходимости разрешите доступ");
+        
+        // Кнопка активации (для iOS также вызывает requestSensors)
+        const requestBtn = document.createElement('button');
+        requestBtn.textContent = "🔘 Активировать датчики";
+        requestBtn.style.marginTop = "8px";
+        requestBtn.style.width = "100%";
+        document.querySelector('.status').after(requestBtn);
+        
+        requestBtn.addEventListener('click', () => {
+            requestSensors();
+            requestBtn.style.display = 'none';
+        });
+        
+        // Если разрешения не требуют кнопки (Android), покажем подсказку
+        if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
+            // авто активация для Android через небольшую задержку (но кнопка тоже остаётся на случай)
+            setTimeout(() => {
+                if (!orientationGranted && !motionGranted) {
+                    orientationGranted = true;
+                    motionGranted = true;
+                    window.addEventListener('deviceorientation', handleOrientation);
+                    window.addEventListener('devicemotion', handleMotion);
+                    statusDiv.innerHTML = "📡 Датчики активны (Android). Поворачивайте телефон!";
+                    requestBtn.style.display = 'none';
+                }
+            }, 500);
+        }
+        
+        // Сброс позиций
+        resetBtn.addEventListener('click', () => {
+            resetSimulation();
+        });
+        
+        // Инициализация частиц и запуск анимации
+        particles = initParticles(true);
+        animate(performance.now());
+        
+        // Адаптация canvas при изменении размера (сохраняем пропорции)
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const maxW = Math.min(600, container.clientWidth);
+            canvas.style.width = `${maxW}px`;
+            // соотношение 600/500 сохраняется через aspect-ratio в CSS
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // На случай, если телефон перевернут – пересчёт
+        window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 50); });
     })();
 </script>
 </body>
