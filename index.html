@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика шариков — 2D / 3D режим с датчиками телефона</title>
+    <title>Физика шариков — 2D / 3D с датчиками (экран = передняя грань)</title>
     <style>
         * {
             margin: 0;
@@ -34,7 +34,6 @@
             overflow: hidden;
         }
 
-        /* Вкладки */
         .tabs {
             display: flex;
             gap: 12px;
@@ -130,7 +129,7 @@
 <div class="app-container">
     <div class="tabs">
         <button class="tab-btn active" data-mode="2d">⚫ 2D режим (круги)</button>
-        <button class="tab-btn" data-mode="3d">🔵 3D режим (сферы)</button>
+        <button class="tab-btn" data-mode="3d">🔵 3D режим (сферы, глубина)</button>
     </div>
 
     <!-- 2D контейнер -->
@@ -146,7 +145,7 @@
     <div class="info-panel">
         <div class="sensor-data">
             📐 наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°
-            &nbsp;| ⚡ аксель: <span id="accXval">0.00</span> <span id="accYval">0.00</span>
+            &nbsp;| ⚡ аксель: <span id="accXval">0.00</span> <span id="accYval">0.00</span> <span id="accZval">0.00</span>
         </div>
         <button id="resetBtn2d">🌀 Сбросить шарики</button>
         <button id="resetBtn3d" style="display:none;">🌀 Сбросить сферы</button>
@@ -156,7 +155,6 @@
     </div>
 </div>
 
-<!-- Three.js библиотека -->
 <script type="importmap">
     {
         "imports": {
@@ -179,11 +177,12 @@
     const gammaSpan = document.getElementById('gammaVal');
     const accXspan = document.getElementById('accXval');
     const accYspan = document.getElementById('accYval');
+    const accZspan = document.getElementById('accZval');
     const statusDiv = document.getElementById('statusMsg');
     const resetBtn2d = document.getElementById('resetBtn2d');
     const resetBtn3d = document.getElementById('resetBtn3d');
     
-    // --- 2D логика (исправленная: трение и зеркалирование) ---
+    // --- 2D логика (без изменений, работает отлично) ---
     let canvas2d = document.getElementById('canvas2d');
     let ctx = canvas2d.getContext('2d');
     let width = 600, height = 500;
@@ -195,7 +194,7 @@
     const ACCEL_SCALE = 180;
     const ACCEL_BOOST = 1.8;
     const BASE_AIR_DRAG = 0.995;
-    const NORMAL_FRICTION_FACTOR = 0.75;   // сила трения от прижатия
+    const NORMAL_FRICTION_FACTOR = 0.75;
     const BOUNCE_DAMP = 0.85;
     const COLLISION_ELASTIC = 0.55;
     const MIN_SPEED = 0.8;
@@ -272,10 +271,7 @@
     }
     
     function update2DPhysics(dt) {
-        // Коррекция инверсии gamma: только при экране вниз (beta>150 или beta<-150) инвертируем gamma? 
-        // Чтобы при экране вниз направление было как при экране вверх, а при экране вверх не трогаем.
-        // В текущем коде инверсия не нужна, просто используем gamma как есть, но для исправления просьбы:
-        // "направления влево вправо отзеркалены если телефон экраном вниз" – развернём gamma при beta > 150 или beta < -150.
+        // Коррекция gamma при экране вниз
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
         
@@ -290,11 +286,9 @@
         let totalForceX = gravX + accX;
         let totalForceY = gravY + accY;
         
-        // Трение: normalForce = |cos(beta)| – максимально при экране вверх/вниз, минимально при вертикали
         let normalForce = Math.abs(Math.cos(radBeta));
-        // При вертикальном положении (beta~90°) normalForce~0 -> трение минимально (drag почти 1)
         let dragFactor = 1 - NORMAL_FRICTION_FACTOR * normalForce;
-        let finalDrag = BASE_AIR_DRAG * Math.max(0.98, dragFactor); // не ниже 0.98 для стабильности
+        let finalDrag = BASE_AIR_DRAG * Math.max(0.98, dragFactor);
         
         for (let p of particles2d) {
             p.vx += totalForceX * dt;
@@ -333,11 +327,13 @@
         ctx.shadowBlur=0;
     }
     
-    // --- 3D логика (Three.js + физика)---
+    // --- 3D логика (исправленная: экран = передняя грань) ---
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
     const SPHERE_COUNT = 12;
-    const BOX_SIZE = 4;    // куб от -2 до 2 по X,Y,Z
+    const BOX_WIDTH = 4.0;    // ширина (X) - лево/право
+    const BOX_HEIGHT = 4.0;   // высота (Y) - верх/низ
+    const BOX_DEPTH = 5.0;    // глубина (Z) - внутрь экрана
     const SPHERE_RADII = [0.28,0.24,0.32,0.22,0.26,0.3,0.24,0.28,0.24,0.26,0.32,0.24];
     let force3D = {x:0, y:0, z:0};
     let lastTimestamp3d = 0;
@@ -345,16 +341,19 @@
     let threeContainer = document.getElementById('threeContainer');
     
     function init3D() {
-        // очистка предыдущего
         if (renderer) {
             renderer.dispose();
             threeContainer.innerHTML = '';
         }
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0f172a);
-        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 20);
-        camera.position.set(5,4,6);
-        camera.lookAt(0,0,0);
+        
+        // Камера смотрит на переднюю грань (ось Z направлена от камеры внутрь)
+        // Помещаем камеру перед передней стенкой, чтобы видеть куб в перспективе
+        camera = new THREE.PerspectiveCamera(50, 1, 0.1, 20);
+        camera.position.set(0, 0, 5.5);   // прямо перед передней гранью (Z = +2.5 середина, но мы видим от -2.5 до +2.5 по Z)
+        camera.lookAt(0, 0, 0);
+        
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
         threeContainer.appendChild(renderer.domElement);
@@ -363,24 +362,40 @@
         const ambientLight = new THREE.AmbientLight(0x404060);
         scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(2,5,3);
+        dirLight.position.set(2, 3, 4);
         scene.add(dirLight);
-        const backLight = new THREE.PointLight(0x4466cc, 0.5);
-        backLight.position.set(-2,1,-3);
+        const backLight = new THREE.PointLight(0x4466cc, 0.6);
+        backLight.position.set(0, 0, -3);
         scene.add(backLight);
         
         // Полупрозрачный куб (стенки)
-        const boxMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
-        const boxWire = new THREE.LineSegments();
-        const boxGeo = new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE);
+        const boxMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+        const boxGeo = new THREE.BoxGeometry(BOX_WIDTH, BOX_HEIGHT, BOX_DEPTH);
+        const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+        scene.add(boxMesh);
+        
+        // Рёбра куба
         const edgesGeo = new THREE.EdgesGeometry(boxGeo);
         const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
         const wireframe = new THREE.LineSegments(edgesGeo, wireMat);
         scene.add(wireframe);
         
-        // Добавим внутреннюю сетку для глубины
-        const gridHelper = new THREE.GridHelper(5, 20, 0x88aaff, 0x335588);
-        gridHelper.position.y = -1.9;
+        // Отметим переднюю грань (экран) тонкой рамкой другого цвета
+        const frontFaceMat = new THREE.LineBasicMaterial({ color: 0xffaa44 });
+        const frontCorners = [
+            [-BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2], [ BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2],
+            [ BOX_WIDTH/2,  BOX_HEIGHT/2,  BOX_DEPTH/2], [-BOX_WIDTH/2,  BOX_HEIGHT/2,  BOX_DEPTH/2],
+            [-BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2]
+        ];
+        const frontLineGeo = new THREE.BufferGeometry();
+        const vertices = frontCorners.flatMap(v => v);
+        frontLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+        const frontLines = new THREE.Line(frontLineGeo, frontFaceMat);
+        scene.add(frontLines);
+        
+        // Вспомогательная сетка на "полу" внутри (для ощущения глубины)
+        const gridHelper = new THREE.GridHelper(3.5, 10, 0x88aaff, 0x335588);
+        gridHelper.position.y = -BOX_HEIGHT/2 + 0.05;
         scene.add(gridHelper);
         
         // Сферы
@@ -394,9 +409,9 @@
             let material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.2 });
             let sphere = new THREE.Mesh(geometry, material);
             // случайная позиция внутри куба с учётом радиуса
-            let x = (Math.random() - 0.5) * (BOX_SIZE - 2*r);
-            let y = (Math.random() - 0.5) * (BOX_SIZE - 2*r);
-            let z = (Math.random() - 0.5) * (BOX_SIZE - 2*r);
+            let x = (Math.random() - 0.5) * (BOX_WIDTH - 2*r);
+            let y = (Math.random() - 0.5) * (BOX_HEIGHT - 2*r);
+            let z = (Math.random() - 0.5) * (BOX_DEPTH - 2*r);
             sphere.position.set(x, y, z);
             scene.add(sphere);
             sphereMeshes.push(sphere);
@@ -422,16 +437,24 @@
     }
     
     function update3DPhysics(dt) {
-        // Инверсия gamma при экране вниз (аналогично 2D)
+        // Коррекция gamma при экране вниз
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
+        
         const radBeta = beta * Math.PI/180;
         const radGamma = correctedGamma * Math.PI/180;
-        // Гравитация в плоскости X,Y (как в 2D)
-        let gravX = GRAVITY_BASE * Math.sin(radGamma);
-        let gravY = GRAVITY_BASE * Math.sin(radBeta);
-        // Гравитация по Z: когда телефон горизонтален экраном вверх, гравитация "вдавливает" в заднюю стенку
-        let gravZ = GRAVITY_BASE * Math.cos(radBeta) * Math.cos(radGamma);
+        
+        // Оси: X - лево/право (gamma), Y - верх/низ (beta), Z - глубина (внутрь экрана)
+        // При наклоне телефона сила тяжести проецируется на плоскость экрана (X,Y) и на ось Z.
+        // Если телефон смотрит экраном на пользователя, то гравитация направлена вниз по оси Y,
+        // и также может быть небольшая компонента по Z, если телефон наклонён "от себя".
+        // Но мы хотим, чтобы при обычном использовании (телефон вертикально) шары падали вниз (Y),
+        // а при наклоне экрана вверх/вниз они ещё и уходили вглубь (Z).
+        
+        // Компоненты гравитации:
+        let gravX = GRAVITY_BASE * Math.sin(radGamma);           // боковой наклон
+        let gravY = GRAVITY_BASE * Math.sin(radBeta);            // наклон вперёд/назад
+        let gravZ = GRAVITY_BASE * Math.cos(radBeta) * Math.cos(radGamma); // при горизонтальном положении экрана вверх/вниз
         
         // Акселерометр (3 оси)
         let accX = filteredAccX * ACCEL_SCALE;
@@ -445,7 +468,7 @@
         let totalForceY = gravY + accY;
         let totalForceZ = gravZ + accZ;
         
-        // Трение в 3D: зависит от нормальной составляющей, но проще добавить небольшое воздушное трение и трение о стены отдельно
+        // Трение в 3D: небольшое воздушное трение
         const AIR_DRAG_3D = 0.995;
         const WALL_DAMP = 0.88;
         
@@ -464,17 +487,17 @@
             pos.z += vel.z * dt;
             
             let r = spheres[i].r;
-            let half = BOX_SIZE/2;
-            // Столкновения со стенами + трение
-            if (pos.x + r > half) { pos.x = half - r; vel.x = -vel.x * WALL_DAMP; }
-            if (pos.x - r < -half) { pos.x = -half + r; vel.x = -vel.x * WALL_DAMP; }
-            if (pos.y + r > half) { pos.y = half - r; vel.y = -vel.y * WALL_DAMP; }
-            if (pos.y - r < -half) { pos.y = -half + r; vel.y = -vel.y * WALL_DAMP; }
-            if (pos.z + r > half) { pos.z = half - r; vel.z = -vel.z * WALL_DAMP; }
-            if (pos.z - r < -half) { pos.z = -half + r; vel.z = -vel.z * WALL_DAMP; }
+            let halfX = BOX_WIDTH/2, halfY = BOX_HEIGHT/2, halfZ = BOX_DEPTH/2;
+            // Столкновения со стенами
+            if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP; }
+            if (pos.x - r < -halfX) { pos.x = -halfX + r; vel.x = -vel.x * WALL_DAMP; }
+            if (pos.y + r > halfY) { pos.y = halfY - r; vel.y = -vel.y * WALL_DAMP; }
+            if (pos.y - r < -halfY) { pos.y = -halfY + r; vel.y = -vel.y * WALL_DAMP; }
+            if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP; }
+            if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP; }
         }
         
-        // Коллизии между сферами (упрощённо)
+        // Коллизии между сферами
         for (let i=0; i<spheres.length; i++) {
             for (let j=i+1; j<spheres.length; j++) {
                 let p1 = sphereMeshes[i].position, p2 = sphereMeshes[j].position;
@@ -522,17 +545,17 @@
     function reset3D() {
         for (let i=0; i<spheres.length; i++) {
             let r = spheres[i].r;
-            let half = BOX_SIZE/2 - r;
+            let halfX = BOX_WIDTH/2 - r, halfY = BOX_HEIGHT/2 - r, halfZ = BOX_DEPTH/2 - r;
             sphereMeshes[i].position.set(
-                (Math.random() - 0.5) * 2 * half,
-                (Math.random() - 0.5) * 2 * half,
-                (Math.random() - 0.5) * 2 * half
+                (Math.random() - 0.5) * 2 * halfX,
+                (Math.random() - 0.5) * 2 * halfY,
+                (Math.random() - 0.5) * 2 * halfZ
             );
             sphereVelocities[i] = { x:0, y:0, z:0 };
         }
     }
     
-    // --- Общие датчики (работают для обоих режимов)---
+    // --- Общие датчики ---
     function handleOrientation(e) {
         if (!orientationGranted) return;
         if (e.beta !== null) beta = e.beta;
@@ -551,6 +574,7 @@
             filteredAccZ = filteredAccZ*(1-ACC_FILTER) + rawZ*ACC_FILTER;
             accXspan.textContent = filteredAccX.toFixed(2);
             accYspan.textContent = filteredAccY.toFixed(2);
+            accZspan.textContent = filteredAccZ.toFixed(2);
         }
     }
     
@@ -589,14 +613,13 @@
         if (anim2dId) cancelAnimationFrame(anim2dId);
         function update2Dloop(now) {
             if (!mode2dActive) return;
-            if (lastTimestamp2d === undefined) { lastTimestamp2d = now; requestAnimationFrame(update2Dloop); return; }
-            let dt = Math.min(0.033, (now - lastTimestamp2d)/1000);
+            if (window._last2dTs === undefined) { window._last2dTs = now; requestAnimationFrame(update2Dloop); return; }
+            let dt = Math.min(0.033, (now - window._last2dTs)/1000);
             if (dt>0) update2DPhysics(dt);
-            lastTimestamp2d = now;
+            window._last2dTs = now;
             draw2D();
             requestAnimationFrame(update2Dloop);
         }
-        let lastTimestamp2d;
         anim2dId = requestAnimationFrame(update2Dloop);
     }
     
@@ -644,19 +667,21 @@
         }
     }
     
-    // Инициализация
+    // Инициализация 2D
     particles2d = init2DParticles();
     start2D();
     resetBtn2d.addEventListener('click', () => { particles2d = init2DParticles(); });
     resetBtn3d.addEventListener('click', () => { if (spheres.length) reset3D(); });
     
-    // Кнопка запроса датчиков (для iOS)
+    // Кнопка активации датчиков
     const requestBtn = document.createElement('button');
     requestBtn.textContent = "🔘 Активировать датчики";
     requestBtn.style.marginTop = "8px";
     requestBtn.style.width = "100%";
     document.querySelector('.status').after(requestBtn);
     requestBtn.addEventListener('click', () => { requestSensors(); requestBtn.style.display = 'none'; });
+    
+    // Автоактивация для Android
     if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
         setTimeout(() => {
             if (!orientationGranted && !motionGranted) {
@@ -669,7 +694,7 @@
         }, 500);
     }
     
-    // Адаптация размера canvas 2D под контейнер
+    // Адаптация canvas 2D
     function resizeCanvas2D() {
         let container = canvas2d.parentElement;
         let maxW = Math.min(600, container.clientWidth);
