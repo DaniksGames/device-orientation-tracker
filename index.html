@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика кругов с датчиками телефона</title>
+    <title>Физика кругов + гироскоп + усиленный акселерометр</title>
     <style>
         * {
             margin: 0;
@@ -137,36 +137,29 @@
         canvas.width = width;
         canvas.height = height;
 
-        // Глобальный вектор силы (пиксели/сек²)
         let forceX = 0;
         let forceY = 0;
-        // Коэффициент гравитации от наклона (масштаб: 800 пикселей/сек² при max наклоне 90° -> 9.8 м/с², но игровая логика)
-        const GRAVITY_BASE = 850.0;      // пикселей/сек² при наклоне 90°
-        // Масштаб линейного ускорения (чтобы резкие движения заметно влияли)
-        const ACCEL_SCALE = 55.0;         // перевод м/с² в пиксели/сек²
         
-        // Трение воздуха (сохраняет энергию, но стабилизирует)
+        // Гравитация от наклона (масштаб: 950 пикселей/сек² при наклоне 90°)
+        const GRAVITY_BASE = 950.0;
+        // Сильно увеличенный коэффициент для акселерометра (было 55 -> теперь 180)
+        const ACCEL_SCALE = 180.0;
+        // Доп. множитель для сильных пиков (>5 м/с²)
+        const ACCEL_BOOST = 1.8;
+        
         const AIR_DRAG = 0.995;
-        // Коэффициент отскока от стен
         const BOUNCE_DAMP = 0.92;
-        // Коэффициент упругости при столкновении шаров
         const COLLISION_ELASTIC = 0.85;
-        
-        // Минимальная скорость для остановки (обрезка)
         const MIN_SPEED = 0.5;
         
-        // --- Данные с датчиков ---
+        // --- Датчики ---
         let beta = 0;       // наклон вперёд/назад
-        let gamma = 0;      // наклон влево/вправо
-        let accelX = 0;     // линейное ускорение X (м/с²)
-        let accelY = 0;     // линейное ускорение Y
+        let gamma = 0;      // наклон влево/вправо (исправлено зеркалирование)
+        let rawAccX = 0, rawAccY = 0;
+        let filteredAccX = 0, filteredAccY = 0;
+        const ACC_FILTER = 0.3;   // чуть более отзывчивый фильтр
         
-        // Фильтр для акселерометра (простой low-pass)
-        let filteredAccX = 0;
-        let filteredAccY = 0;
-        const ACC_FILTER = 0.25;
-        
-        // --- Частицы (круги) ---
+        // --- Частицы ---
         const PARTICLE_COUNT = 12;
         let particles = [];
         
@@ -177,7 +170,7 @@
                 this.r = r;
                 this.vx = vx;
                 this.vy = vy;
-                this.mass = r * r;   // масса пропорциональна площади (для реалистичных столкновений)
+                this.mass = r * r;
             }
         }
         
@@ -189,7 +182,6 @@
                 let overlap = true;
                 let tries = 0;
                 let x, y;
-                // Размещаем без перекрытий
                 do {
                     overlap = false;
                     x = r + Math.random() * (width - 2 * r);
@@ -215,7 +207,7 @@
             particles = initParticles(true);
         }
         
-        // --- Коллизии между частицами (импульсное разрешение) ---
+        // --- Коллизии ---
         function handleCollisions() {
             for (let i = 0; i < particles.length; i++) {
                 for (let j = i + 1; j < particles.length; j++) {
@@ -230,7 +222,6 @@
                         const angle = Math.atan2(dy, dx);
                         const cos = Math.cos(angle);
                         const sin = Math.sin(angle);
-                        // Сдвиг позиций
                         const move1 = (overlap * (p2.mass / (p1.mass + p2.mass)));
                         const move2 = (overlap * (p1.mass / (p1.mass + p2.mass)));
                         p1.x -= move1 * cos;
@@ -238,7 +229,6 @@
                         p2.x += move2 * cos;
                         p2.y += move2 * sin;
                         
-                        // Скорости в локальной системе
                         const vx1 = p1.vx, vy1 = p1.vy;
                         const vx2 = p2.vx, vy2 = p2.vy;
                         const vrelx = vx2 - vx1;
@@ -258,98 +248,67 @@
             }
         }
         
-        // --- Границы с учётом радиуса ---
         function handleBoundaries() {
             for (let p of particles) {
-                // Левый/правый край
-                if (p.x - p.r < 0) {
-                    p.x = p.r;
-                    p.vx = -p.vx * BOUNCE_DAMP;
-                }
-                if (p.x + p.r > width) {
-                    p.x = width - p.r;
-                    p.vx = -p.vx * BOUNCE_DAMP;
-                }
-                // Верх/низ
-                if (p.y - p.r < 0) {
-                    p.y = p.r;
-                    p.vy = -p.vy * BOUNCE_DAMP;
-                }
-                if (p.y + p.r > height) {
-                    p.y = height - p.r;
-                    p.vy = -p.vy * BOUNCE_DAMP;
-                }
-                // фикс залипания на границах (если скорость слишком мала)
+                if (p.x - p.r < 0) { p.x = p.r; p.vx = -p.vx * BOUNCE_DAMP; }
+                if (p.x + p.r > width) { p.x = width - p.r; p.vx = -p.vx * BOUNCE_DAMP; }
+                if (p.y - p.r < 0) { p.y = p.r; p.vy = -p.vy * BOUNCE_DAMP; }
+                if (p.y + p.r > height) { p.y = height - p.r; p.vy = -p.vy * BOUNCE_DAMP; }
+                
                 if (Math.abs(p.vx) < MIN_SPEED && Math.abs(p.vy) < MIN_SPEED && 
                     ((p.x - p.r < 1) || (p.x + p.r > width-1) || (p.y - p.r < 1) || (p.y + p.r > height-1))) {
-                    // добавим небольшой толчок, чтоб не вязли
-                    if (p.x - p.r < 1) p.vx += 0.2;
-                    if (p.x + p.r > width-1) p.vx -= 0.2;
-                    if (p.y - p.r < 1) p.vy += 0.2;
-                    if (p.y + p.r > height-1) p.vy -= 0.2;
+                    if (p.x - p.r < 1) p.vx += 0.3;
+                    if (p.x + p.r > width-1) p.vx -= 0.3;
+                    if (p.y - p.r < 1) p.vy += 0.3;
+                    if (p.y + p.r > height-1) p.vy -= 0.3;
                 }
             }
         }
         
-        // --- Обновление сил от датчиков ---
+        // --- Сила от датчиков (исправлено направление gamma) ---
         function updateForceFromSensors() {
-            // гравитация от наклона (beta, gamma в градусах)
-            // Сила в плоскости экрана: компоненты пропорциональны sin(угла)
+            // Гравитация от наклона: gamma инвертирована, чтобы левый наклон толкал влево
             const radBeta = beta * Math.PI / 180;
             const radGamma = gamma * Math.PI / 180;
-            // при наклоне телефона сила "вниз" в системе координат экрана:
-            // gamma - боковой наклон (влево/вправо) -> сила по X
-            // beta - наклон вперед/назад -> сила по Y
-            let gravX = GRAVITY_BASE * Math.sin(radGamma);
+            // ИНВЕРСИЯ: умножаем на -1, чтобы левый наклон (gamma отрицательный) давал отрицательную силу X
+            let gravX = -GRAVITY_BASE * Math.sin(radGamma);
             let gravY = GRAVITY_BASE * Math.sin(radBeta);
             
-            // Добавляем линейное ускорение (резкие движения) 
-            // filteredAccX, filteredAccY уже в м/с², переводим в пиксели/сек²
+            // Акселерометр: резкие движения
             let accForceX = filteredAccX * ACCEL_SCALE;
             let accForceY = filteredAccY * ACCEL_SCALE;
+            
+            // Усиление для пиков (если ускорение > 5 м/с², домножаем)
+            if (Math.abs(filteredAccX) > 5) accForceX *= ACCEL_BOOST;
+            if (Math.abs(filteredAccY) > 5) accForceY *= ACCEL_BOOST;
             
             forceX = gravX + accForceX;
             forceY = gravY + accForceY;
             
-            // Обновление UI
+            // Отображение
             betaSpan.textContent = beta.toFixed(1);
             gammaSpan.textContent = gamma.toFixed(1);
             accXspan.textContent = filteredAccX.toFixed(2);
             accYspan.textContent = filteredAccY.toFixed(2);
         }
         
-        // --- Физический шаг (dt в секундах) ---
         let lastTimestamp = 0;
         function physicsStep(nowMs) {
-            if (!lastTimestamp) {
-                lastTimestamp = nowMs;
-                return;
-            }
-            let dt = Math.min(0.033, (nowMs - lastTimestamp) / 1000); // макс 33 мс
+            if (!lastTimestamp) { lastTimestamp = nowMs; return; }
+            let dt = Math.min(0.033, (nowMs - lastTimestamp) / 1000);
             if (dt <= 0) return;
             
-            // обновить силу на основе текущих показаний датчиков
             updateForceFromSensors();
             
-            // Применяем силу ко всем частицам (F = m*a, a = F/m, но масса учитывается, ускорение = force / mass)
-            // Чтобы сохранить физическую достоверность: ускорение = force / mass (но масса разная).
-            // Для простоты управления: хотим, чтобы сила не зависела от массы, т.е. все шары получают одинаковое ускорение?
-            // По классике: a = F / m. Если F = масса * a_gravity, то ускорение от гравитации одинаковое для всех масс. 
-            // Поскольку гравитация в реальности дает одинаковое ускорение, мы должны делить силу на массу.
-            // У нас forceX/forceY - полная сила (пиксели/сек² * массу? Нет, мы задали GRAVITY_BASE как ускорение, а accelScale - ускорение.
-            // Поэтому forceX,forceY - это просто ускорение (пиксели/сек²). Тогда добавляем к скорости напрямую.
             for (let p of particles) {
                 p.vx += forceX * dt;
                 p.vy += forceY * dt;
-                // трение воздуха
                 p.vx *= AIR_DRAG;
                 p.vy *= AIR_DRAG;
-                // обновление позиции
                 p.x += p.vx * dt;
                 p.y += p.vy * dt;
             }
             
-            // Разрешить столкновения (несколько итераций для точности)
             for (let iter = 0; iter < 3; iter++) {
                 handleCollisions();
                 handleBoundaries();
@@ -358,14 +317,11 @@
             lastTimestamp = nowMs;
         }
         
-        // --- Отрисовка canvas ---
         function draw() {
             ctx.clearRect(0, 0, width, height);
-            // Рисуем фон с лёгкой сеткой
             ctx.fillStyle = "#0f172a";
             ctx.fillRect(0, 0, width, height);
             
-            // сетка для ориентира
             ctx.strokeStyle = "#2d3a5e";
             ctx.lineWidth = 0.5;
             for (let i = 0; i < width; i += 40) {
@@ -379,12 +335,9 @@
                 ctx.stroke();
             }
             
-            // тени для шаров
             ctx.shadowBlur = 6;
             ctx.shadowColor = "rgba(0,0,0,0.5)";
-            
             for (let p of particles) {
-                // градиент
                 const grad = ctx.createRadialGradient(p.x - 3, p.y - 3, 3, p.x, p.y, p.r);
                 grad.addColorStop(0, '#fbbf24');
                 grad.addColorStop(1, '#ea580c');
@@ -393,31 +346,30 @@
                 ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
                 ctx.fill();
                 ctx.strokeStyle = "#ffffff80";
-                ctx.lineWidth = 1.5;
+                ctx.lineWidth = 1.2;
                 ctx.stroke();
             }
             ctx.shadowBlur = 0;
             
-            // небольшой индикатор направления силы
+            // стрелка силы
             const centerX = width - 35;
             const centerY = 35;
-            const arrowLen = Math.min(30, Math.hypot(forceX, forceY) / 25);
+            const arrowLen = Math.min(35, Math.hypot(forceX, forceY) / 20);
             const angleForce = Math.atan2(forceY, forceX);
             ctx.beginPath();
             ctx.moveTo(centerX, centerY);
             const tipX = centerX + Math.cos(angleForce) * arrowLen;
             const tipY = centerY + Math.sin(angleForce) * arrowLen;
             ctx.lineTo(tipX, tipY);
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
             ctx.strokeStyle = "#ffaa44";
             ctx.stroke();
             ctx.fillStyle = "#ffaa44";
             ctx.beginPath();
-            ctx.arc(centerX, centerY, 3, 0, 2*Math.PI);
+            ctx.arc(centerX, centerY, 4, 0, 2*Math.PI);
             ctx.fill();
         }
         
-        // --- Анимация (requestAnimationFrame) ---
         let animFrame;
         function animate(time) {
             physicsStep(time);
@@ -425,119 +377,92 @@
             animFrame = requestAnimationFrame(animate);
         }
         
-        // --- Датчики: DeviceOrientation (beta, gamma) и DeviceMotion (линейное ускорение) ---
+        // --- Датчики ---
         let orientationGranted = false;
         let motionGranted = false;
         
         function handleOrientation(event) {
             if (!orientationGranted) return;
-            // beta: -180..180, gamma: -90..90
             if (event.beta !== null) beta = event.beta;
             if (event.gamma !== null) gamma = event.gamma;
-            // alpha не используем
         }
         
         function handleMotion(event) {
             if (!motionGranted) return;
-            // линейное ускорение (исключая гравитацию)
             if (event.acceleration) {
-                let rawX = event.acceleration.x || 0;
-                let rawY = event.acceleration.y || 0;
-                // фильтр low-pass
-                filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawX * ACC_FILTER;
-                filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawY * ACC_FILTER;
-                accelX = filteredAccX;
-                accelY = filteredAccY;
+                rawAccX = event.acceleration.x || 0;
+                rawAccY = event.acceleration.y || 0;
+                filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawAccX * ACC_FILTER;
+                filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawAccY * ACC_FILTER;
             }
         }
         
-        // --- Запрос разрешений для iOS/Android ---
         async function requestSensors() {
-            // DeviceOrientation
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                // iOS
                 try {
                     const perm = await DeviceOrientationEvent.requestPermission();
                     if (perm === 'granted') {
                         orientationGranted = true;
                         window.addEventListener('deviceorientation', handleOrientation);
-                        statusDiv.innerHTML = "✅ Ориентация разрешена. Теперь наклоняйте телефон!";
-                    } else {
-                        statusDiv.innerHTML = "❌ Отказано в доступе к ориентации";
-                    }
-                } catch(e) { console.warn(e); statusDiv.innerHTML = "Ошибка запроса ориентации"; }
+                        statusDiv.innerHTML = "✅ Ориентация разрешена. Наклоняйте телефон!";
+                    } else { statusDiv.innerHTML = "❌ Отказано в доступе к ориентации"; }
+                } catch(e) { console.warn(e); }
             } else {
-                // Android/другие
                 orientationGranted = true;
                 window.addEventListener('deviceorientation', handleOrientation);
             }
             
-            // DeviceMotion (линейное ускорение)
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const motionPerm = await DeviceMotionEvent.requestPermission();
                     if (motionPerm === 'granted') {
                         motionGranted = true;
                         window.addEventListener('devicemotion', handleMotion);
-                        if (statusDiv.innerHTML.includes("Ориентация")) statusDiv.innerHTML += " + акселерометр";
-                        else statusDiv.innerHTML = "✅ Акселерометр активен, трясите телефон!";
+                        if (!statusDiv.innerHTML.includes("акселерометр")) statusDiv.innerHTML += " + акселерометр";
                     }
                 } catch(e) { console.warn(e); }
             } else {
                 motionGranted = true;
                 window.addEventListener('devicemotion', handleMotion);
-                statusDiv.innerHTML = "🎉 Датчики готовы! Шарики реагируют на наклон и встряхивание.";
+                statusDiv.innerHTML = "🎉 Датчики активны! Трясите телефон — шары отреагируют";
             }
         }
         
-        // Кнопка активации (для iOS также вызывает requestSensors)
         const requestBtn = document.createElement('button');
         requestBtn.textContent = "🔘 Активировать датчики";
         requestBtn.style.marginTop = "8px";
         requestBtn.style.width = "100%";
         document.querySelector('.status').after(requestBtn);
-        
         requestBtn.addEventListener('click', () => {
             requestSensors();
             requestBtn.style.display = 'none';
         });
         
-        // Если разрешения не требуют кнопки (Android), покажем подсказку
         if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
-            // авто активация для Android через небольшую задержку (но кнопка тоже остаётся на случай)
             setTimeout(() => {
                 if (!orientationGranted && !motionGranted) {
                     orientationGranted = true;
                     motionGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
                     window.addEventListener('devicemotion', handleMotion);
-                    statusDiv.innerHTML = "📡 Датчики активны (Android). Поворачивайте телефон!";
+                    statusDiv.innerHTML = "📡 Датчики активны (Android). Наклоняйте и трясите!";
                     requestBtn.style.display = 'none';
                 }
             }, 500);
         }
         
-        // Сброс позиций
-        resetBtn.addEventListener('click', () => {
-            resetSimulation();
-        });
+        resetBtn.addEventListener('click', resetSimulation);
         
-        // Инициализация частиц и запуск анимации
         particles = initParticles(true);
         animate(performance.now());
         
-        // Адаптация canvas при изменении размера (сохраняем пропорции)
         function resizeCanvas() {
             const container = canvas.parentElement;
             const maxW = Math.min(600, container.clientWidth);
             canvas.style.width = `${maxW}px`;
-            // соотношение 600/500 сохраняется через aspect-ratio в CSS
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
-        
-        // На случай, если телефон перевернут – пересчёт
-        window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 50); });
     })();
 </script>
 </body>
