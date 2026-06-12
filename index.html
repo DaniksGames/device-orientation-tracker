@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика шариков — 2D / 3D с датчиками (исправлена скорость и направления)</title>
+    <title>Физика шариков — 2D / 3D с датчиками телефона</title>
     <style>
         * {
             margin: 0;
@@ -72,47 +72,35 @@
             width: 100%;
             height: auto;
         }
-        .three-canvas {
-            background: #0f172a;
-            border-radius: 1.5rem;
-        }
 
         .info-panel {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            gap: 8px;
             margin-top: 16px;
             margin-bottom: 8px;
-            font-size: 0.75rem;
-            background: #0f172ad9;
-            backdrop-filter: blur(4px);
-            padding: 10px 14px;
-            border-radius: 2rem;
-            color: #cbd5e6;
         }
 
+        details {
+            background: #0f172ad9;
+            backdrop-filter: blur(4px);
+            border-radius: 2rem;
+            padding: 6px 12px;
+            color: #cbd5e6;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+        summary {
+            cursor: pointer;
+            font-weight: 500;
+            padding: 4px;
+        }
         .sensor-data {
             display: flex;
             gap: 16px;
             flex-wrap: wrap;
-            font-family: monospace;
-            font-weight: 600;
+            margin-top: 8px;
         }
-        .sensor-data span { color: #7dd3fc; }
-
-        button {
-            background: #3b82f6;
-            border: none;
-            padding: 8px 18px;
-            border-radius: 3rem;
-            font-weight: bold;
-            color: white;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: 0.2s;
+        .sensor-data span {
+            color: #7dd3fc;
         }
-        button:active { transform: scale(0.96); }
 
         .status {
             background: #1e2a3a;
@@ -128,8 +116,8 @@
 <body>
 <div class="app-container">
     <div class="tabs">
-        <button class="tab-btn active" data-mode="2d">⚫ 2D режим (круги)</button>
-        <button class="tab-btn" data-mode="3d">🔵 3D режим (сферы, глубина)</button>
+        <button class="tab-btn active" data-mode="2d">2D</button>
+        <button class="tab-btn" data-mode="3d">3D</button>
     </div>
 
     <div id="mode2d" class="mode-container active-mode">
@@ -141,12 +129,13 @@
     </div>
 
     <div class="info-panel">
-        <div class="sensor-data">
-            📐 наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°
-            &nbsp;| ⚡ аксель: <span id="accXval">0.00</span> <span id="accYval">0.00</span> <span id="accZval">0.00</span>
-        </div>
-        <button id="resetBtn2d">🌀 Сбросить шарики</button>
-        <button id="resetBtn3d" style="display:none;">🌀 Сбросить сферы</button>
+        <details>
+            <summary>Технические данные датчиков</summary>
+            <div class="sensor-data">
+                Наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°<br>
+                Акселерометр: <span id="accXval">0.00</span> <span id="accYval">0.00</span> <span id="accZval">0.00</span>
+            </div>
+        </details>
     </div>
     <div class="status" id="statusMsg">
         ⏳ Разрешите доступ к датчикам
@@ -176,10 +165,8 @@
     const accYspan = document.getElementById('accYval');
     const accZspan = document.getElementById('accZval');
     const statusDiv = document.getElementById('statusMsg');
-    const resetBtn2d = document.getElementById('resetBtn2d');
-    const resetBtn3d = document.getElementById('resetBtn3d');
     
-    // --- 2D (без изменений) ---
+    // --- 2D (без сетки, без кнопки сброса) ---
     let canvas2d = document.getElementById('canvas2d');
     let ctx = canvas2d.getContext('2d');
     let width = 600, height = 500;
@@ -301,17 +288,13 @@
         ctx.clearRect(0,0,width,height);
         ctx.fillStyle="#0f172a";
         ctx.fillRect(0,0,width,height);
-        ctx.strokeStyle="#2d3a5e";
-        ctx.lineWidth=0.5;
-        for(let i=0;i<width;i+=40) {
-            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,height); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0,i%height); ctx.lineTo(width,i%height); ctx.stroke();
-        }
+        // Сетка полностью убрана
         ctx.shadowBlur=6;
         ctx.shadowColor="rgba(0,0,0,0.5)";
         for(let p of particles2d) {
             let grad = ctx.createRadialGradient(p.x-3,p.y-3,3,p.x,p.y,p.r);
-            grad.addColorStop(0,'#fbbf24'); grad.addColorStop(1,'#ea580c');
+            grad.addColorStop(0,'#fbbf24');
+            grad.addColorStop(1,'#ea580c');
             ctx.fillStyle=grad;
             ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
             ctx.strokeStyle="#ffffff80"; ctx.lineWidth=1.2; ctx.stroke();
@@ -319,21 +302,21 @@
         ctx.shadowBlur=0;
     }
     
-    // --- 3D ЛОГИКА (исправленная: скорости, направления, знаки) ---
+    // --- 3D с исправленным направлением Z, мягкими цветами, высоким разрешением ---
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
     const SPHERE_COUNT = 12;
-    const BOX_WIDTH = 4.0;    // X: лево-право
-    const BOX_HEIGHT = 4.0;   // Y: верх-низ
-    const BOX_DEPTH = 5.0;    // Z: глубина (внутрь)
+    const BOX_WIDTH = 4.0;
+    const BOX_HEIGHT = 4.0;
+    const BOX_DEPTH = 5.0;
     const SPHERE_RADII = [0.28,0.24,0.32,0.22,0.26,0.3,0.24,0.28,0.24,0.26,0.32,0.24];
     
-    // НОВЫЕ, сильно уменьшенные коэффициенты для 3D
-    const GRAVITY_BASE_3D = 14.0;       // было 950 -> теперь 14
-    const ACCEL_SCALE_3D = 5.0;         // было 180 -> теперь 5
-    const ACCEL_BOOST_3D = 1.2;         // был 1.8 -> теперь 1.2
-    const AIR_DRAG_3D = 0.99;           // небольшое трение воздуха
-    const WALL_DAMP_3D = 0.90;          // отскок от стен
+    // Коэффициенты 3D (оставлены малыми, чтобы не было сверхскоростей)
+    const GRAVITY_BASE_3D = 14.0;
+    const ACCEL_SCALE_3D = 5.0;
+    const ACCEL_BOOST_3D = 1.2;
+    const AIR_DRAG_3D = 0.99;
+    const WALL_DAMP_3D = 0.90;
     
     let lastTimestamp3d = 0;
     let threeRunning = false;
@@ -350,51 +333,44 @@
         camera.position.set(0, 0, 5.5);
         camera.lookAt(0, 0, 0);
         renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio); // высокое разрешение
         renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
         threeContainer.appendChild(renderer.domElement);
         
+        // Освещение более мягкое
         const ambientLight = new THREE.AmbientLight(0x404060);
         scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(2, 3, 4);
-        scene.add(dirLight);
-        const backLight = new THREE.PointLight(0x4466cc, 0.6);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        mainLight.position.set(2, 3, 4);
+        scene.add(mainLight);
+        const fillLight = new THREE.PointLight(0x88aaff, 0.4);
+        fillLight.position.set(-1, 1, 2);
+        scene.add(fillLight);
+        const backLight = new THREE.PointLight(0x4466cc, 0.3);
         backLight.position.set(0, 0, -3);
         scene.add(backLight);
         
-        // Полупрозрачный куб
-        const boxMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+        // Только рёбра куба (без прозрачных граней и сетки)
         const boxGeo = new THREE.BoxGeometry(BOX_WIDTH, BOX_HEIGHT, BOX_DEPTH);
-        const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-        scene.add(boxMesh);
-        // Рёбра
         const edgesGeo = new THREE.EdgesGeometry(boxGeo);
         const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
         const wireframe = new THREE.LineSegments(edgesGeo, wireMat);
         scene.add(wireframe);
-        // Передняя грань (экран) подсвечена
-        const frontFaceMat = new THREE.LineBasicMaterial({ color: 0xffaa44 });
-        const frontCorners = [
-            [-BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2], [ BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2],
-            [ BOX_WIDTH/2,  BOX_HEIGHT/2,  BOX_DEPTH/2], [-BOX_WIDTH/2,  BOX_HEIGHT/2,  BOX_DEPTH/2],
-            [-BOX_WIDTH/2, -BOX_HEIGHT/2,  BOX_DEPTH/2]
-        ];
-        const frontLineGeo = new THREE.BufferGeometry();
-        const vertices = frontCorners.flatMap(v => v);
-        frontLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
-        const frontLines = new THREE.Line(frontLineGeo, frontFaceMat);
-        scene.add(frontLines);
         
-        // Сферы
+        // Сферы с высоким качеством (48 сегментов)
         spheres = [];
         sphereMeshes = [];
         sphereVelocities = [];
         for (let i=0; i<SPHERE_COUNT; i++) {
             let r = SPHERE_RADII[i%SPHERE_RADII.length];
-            let color = new THREE.Color().setHSL(0.1 + Math.random()*0.15, 0.9, 0.55);
-            let geometry = new THREE.SphereGeometry(r, 32, 32);
-            let material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.2 });
-            let sphere = new THREE.Mesh(geometry, material);
+            // Мягкие, приглушённые цвета (пастельные)
+            const hue = 0.08 + Math.random() * 0.12; // от оранжевого до жёлто-зелёного
+            const saturation = 0.6;
+            const lightness = 0.65;
+            const color = new THREE.Color().setHSL(hue, saturation, lightness);
+            const geometry = new THREE.SphereGeometry(r, 48, 48);
+            const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.25, metalness: 0.1 });
+            const sphere = new THREE.Mesh(geometry, material);
             let x = (Math.random() - 0.5) * (BOX_WIDTH - 2*r);
             let y = (Math.random() - 0.5) * (BOX_HEIGHT - 2*r);
             let z = (Math.random() - 0.5) * (BOX_DEPTH - 2*r);
@@ -422,26 +398,22 @@
     }
     
     function update3DPhysics(dt) {
-        // Коррекция gamma при экране вниз (такая же, как в 2D)
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
-        
         const radBeta = beta * Math.PI/180;
         const radGamma = correctedGamma * Math.PI/180;
         
-        // Силы в пространстве куба (X - лево/право, Y - верх/низ, Z - глубина)
-        // Исправляем знаки: теперь при наклоне телефона вперёд (beta > 0) шары должны лететь вниз (отрицательная Y)
-        // Для этого gravY = -GRAVITY_BASE_3D * sin(radBeta)
-        // При наклоне экрана вверх (beta около +90°) сила по Z толкает шары внутрь (положительная Z) -> gravZ = +GRAVITY_BASE_3D * cos(radBeta)
-        // Боковой наклон (gamma) без изменений (X)
+        // Гравитация: X (боковой наклон)
         let gravX = GRAVITY_BASE_3D * Math.sin(radGamma);
+        // Y (верх-низ) – инвертирована, чтобы наклон вперёд толкал вниз
         let gravY = -GRAVITY_BASE_3D * Math.sin(radBeta);
-        let gravZ = GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
+        // Z (глубина) – ИНВЕРТИРОВАНА: теперь при наклоне экрана вверх шары летят внутрь (+Z)
+        let gravZ = -GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
         
-        // Акселерометр (тоже с правильными знаками)
+        // Акселерометр (все оси с инверсией Z для согласованности)
         let accX = filteredAccX * ACCEL_SCALE_3D;
-        let accY = -filteredAccY * ACCEL_SCALE_3D;   // инверсия Y
-        let accZ = filteredAccZ * ACCEL_SCALE_3D;
+        let accY = -filteredAccY * ACCEL_SCALE_3D;
+        let accZ = -filteredAccZ * ACCEL_SCALE_3D;
         if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST_3D;
         if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST_3D;
         if (Math.abs(filteredAccZ) > 5) accZ *= ACCEL_BOOST_3D;
@@ -519,19 +491,6 @@
         requestAnimationFrame(animate3D);
     }
     
-    function reset3D() {
-        for (let i=0; i<spheres.length; i++) {
-            let r = spheres[i].r;
-            let halfX = BOX_WIDTH/2 - r, halfY = BOX_HEIGHT/2 - r, halfZ = BOX_DEPTH/2 - r;
-            sphereMeshes[i].position.set(
-                (Math.random() - 0.5) * 2 * halfX,
-                (Math.random() - 0.5) * 2 * halfY,
-                (Math.random() - 0.5) * 2 * halfZ
-            );
-            sphereVelocities[i] = { x:0, y:0, z:0 };
-        }
-    }
-    
     // --- Датчики ---
     function handleOrientation(e) {
         if (!orientationGranted) return;
@@ -562,7 +521,7 @@
                 if (perm === 'granted') {
                     orientationGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
-                } else { statusDiv.innerHTML = "❌ Отказано в доступе"; return; }
+                } else { statusDiv.innerHTML = "Отказано в доступе к ориентации"; return; }
             } catch(e) { console.warn(e); }
         } else {
             orientationGranted = true;
@@ -580,7 +539,7 @@
             motionGranted = true;
             window.addEventListener('devicemotion', handleMotion);
         }
-        statusDiv.innerHTML = "✅ Датчики активны! Поворачивайте и трясите.";
+        statusDiv.innerHTML = "Датчики активны. Поворачивайте и трясите телефон.";
     }
     
     // --- Переключение режимов ---
@@ -614,16 +573,12 @@
                 mode2dActive = true;
                 mode2dDiv.classList.add('active-mode');
                 mode3dDiv.classList.remove('active-mode');
-                resetBtn2d.style.display = 'block';
-                resetBtn3d.style.display = 'none';
                 stop3D();
                 start2D();
             } else {
                 mode2dActive = false;
                 mode2dDiv.classList.remove('active-mode');
                 mode3dDiv.classList.add('active-mode');
-                resetBtn2d.style.display = 'none';
-                resetBtn3d.style.display = 'block';
                 stop2D();
                 init3D();
                 threeRunning = true;
@@ -641,15 +596,13 @@
         }
     }
     
-    // Старт 2D
+    // Инициализация 2D
     particles2d = init2DParticles();
     start2D();
-    resetBtn2d.addEventListener('click', () => { particles2d = init2DParticles(); });
-    resetBtn3d.addEventListener('click', () => { if (spheres.length) reset3D(); });
     
     // Кнопка активации датчиков
     const requestBtn = document.createElement('button');
-    requestBtn.textContent = "🔘 Активировать датчики";
+    requestBtn.textContent = "Активировать датчики";
     requestBtn.style.marginTop = "8px";
     requestBtn.style.width = "100%";
     document.querySelector('.status').after(requestBtn);
@@ -662,7 +615,7 @@
                 orientationGranted = true; motionGranted = true;
                 window.addEventListener('deviceorientation', handleOrientation);
                 window.addEventListener('devicemotion', handleMotion);
-                statusDiv.innerHTML = "📡 Датчики активны (Android)";
+                statusDiv.innerHTML = "Датчики активны (Android)";
                 requestBtn.style.display = 'none';
             }
         }, 500);
