@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ориентация телефона + отладка</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: background 0.2s, color 0.2s; }
+        :root { --bg: #f5f7fb; --card: #fff; --text: #1e293b; --border: #e2e8f0; --btn: #3b82f6; }
+        body.dark { --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; --btn: #3b82f6; }
+        body { font-family: system-ui; background: var(--bg); color: var(--text); padding: 1rem; }
+        .container { max-width: 550px; margin: auto; }
+        .card { background: var(--card); border-radius: 2rem; padding: 1.5rem; border: 1px solid var(--border); }
+        h1 { display: flex; justify-content: space-between; }
+        .theme-toggle { background: var(--card); border: 1px solid var(--border); border-radius: 2rem; padding: 0.4rem 0.8rem; cursor: pointer; }
+        .sensor-panel { background: var(--bg); border-radius: 1.5rem; padding: 1rem; margin: 1rem 0; border: 1px solid var(--border); }
+        .data-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed var(--border); }
+        .data-value { font-family: monospace; font-weight: bold; background: var(--card); padding: 0.1rem 0.6rem; border-radius: 1rem; }
+        button { background: var(--btn); color: white; border: none; padding: 0.8rem; width: 100%; border-radius: 2rem; margin: 0.5rem 0; cursor: pointer; }
+        .status { background: rgba(59,130,246,0.1); border-left: 3px solid var(--btn); padding: 0.5rem; border-radius: 1rem; font-size: 0.8rem; margin-bottom: 1rem; }
+        .footnote { font-size: 0.7rem; text-align: center; margin-top: 1rem; color: var(--text); opacity: 0.7; }
+        pre { background: var(--card); padding: 0.5rem; border-radius: 0.8rem; overflow-x: auto; font-size: 0.7rem; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>📱 Ориентация <button class="theme-toggle" id="themeToggle">🌙</button></h1>
+        <div class="status" id="statusMsg">⏳ Нажмите кнопку и разрешите доступ</div>
+
+        <div class="sensor-panel">
+            <div><strong>🧭 DeviceOrientation</strong></div>
+            <div class="data-row"><span>🔄 α (компас):</span><span class="data-value" id="alpha">—</span></div>
+            <div class="data-row"><span>📐 β (наклон X):</span><span class="data-value" id="beta">—</span></div>
+            <div class="data-row"><span>📏 γ (наклон Y):</span><span class="data-value" id="gamma">—</span></div>
+        </div>
+
+        <div class="sensor-panel">
+            <div><strong>⚡ DeviceMotion (акселерометр)</strong></div>
+            <div class="data-row"><span>🎚️ Ускорение X:</span><span class="data-value" id="accX">—</span></div>
+            <div class="data-row"><span>🎚️ Ускорение Y:</span><span class="data-value" id="accY">—</span></div>
+            <div class="data-row"><span>🎚️ Ускорение Z:</span><span class="data-value" id="accZ">—</span></div>
+        </div>
+
+        <button id="requestBtn">🔘 Разрешить доступ к датчикам</button>
+        <div class="footnote">
+            ✔️ Требуется HTTPS или localhost<br>
+            📌 На iOS: настройки Safari → Motion & Orientation Access → ВКЛ<br>
+            📌 На Android: иногда нужно слегка шевельнуть телефон
+        </div>
+        <pre id="debugLog">📡 Логи будут здесь...</pre>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // DOM элементы
+        const alphaSpan = document.getElementById('alpha');
+        const betaSpan = document.getElementById('beta');
+        const gammaSpan = document.getElementById('gamma');
+        const accXSpan = document.getElementById('accX');
+        const accYSpan = document.getElementById('accY');
+        const accZSpan = document.getElementById('accZ');
+        const requestBtn = document.getElementById('requestBtn');
+        const statusDiv = document.getElementById('statusMsg');
+        const debugPre = document.getElementById('debugLog');
+        const themeToggle = document.getElementById('themeToggle');
+
+        // Функция логирования в консоль и на экран
+        function log(msg) {
+            console.log(msg);
+            const p = document.createElement('div');
+            p.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+            debugPre.appendChild(p);
+            debugPre.scrollTop = debugPre.scrollHeight;
+            if (debugPre.children.length > 20) debugPre.removeChild(debugPre.children[0]);
+        }
+
+        // Тёмная тема
+        function setTheme(theme) {
+            if (theme === 'dark') { document.body.classList.add('dark'); localStorage.setItem('theme', 'dark'); themeToggle.innerHTML = '☀️'; }
+            else { document.body.classList.remove('dark'); localStorage.setItem('theme', 'light'); themeToggle.innerHTML = '🌙'; }
+        }
+        const saved = localStorage.getItem('theme');
+        if (saved) setTheme(saved);
+        else setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        themeToggle.onclick = () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+
+        // Обработчики датчиков
+        let orientationActive = false;
+        let motionActive = false;
+
+        function handleOrientation(event) {
+            log(`🔔 deviceorientation: α=${event.alpha}, β=${event.beta}, γ=${event.gamma}`);
+            // ВАЖНО: если значения null — выводим прочерки
+            alphaSpan.textContent = (event.alpha !== null && event.alpha !== undefined) ? event.alpha.toFixed(1) + "°" : "❌ null";
+            betaSpan.textContent  = (event.beta  !== null && event.beta  !== undefined) ? event.beta.toFixed(1)  + "°" : "❌ null";
+            gammaSpan.textContent = (event.gamma !== null && event.gamma !== undefined) ? event.gamma.toFixed(1) + "°" : "❌ null";
+            if (!orientationActive && (event.alpha !== null || event.beta !== null || event.gamma !== null)) {
+                orientationActive = true;
+                updateStatus("✅ Данные ориентации поступают!");
+            } else if (!orientationActive && event.alpha === null && event.beta === null && event.gamma === null) {
+                updateStatus("⚠️ Событие приходит, но все поля null. Проверьте настройки доступа к движению в системе.", true);
+            }
+        }
+
+        function handleMotion(event) {
+            const acc = event.acceleration;
+            if (acc && acc.x !== null) {
+                accXSpan.textContent = acc.x.toFixed(2);
+                accYSpan.textContent = acc.y.toFixed(2);
+                accZSpan.textContent = acc.z.toFixed(2);
+                if (!motionActive) { motionActive = true; log("✅ Акселерометр работает"); }
+            } else {
+                accXSpan.textContent = "—";
+                accYSpan.textContent = "—";
+                accZSpan.textContent = "—";
+            }
+        }
+
+        function updateStatus(msg, isError = false) {
+            statusDiv.innerHTML = msg;
+            statusDiv.style.borderLeftColor = isError ? '#ef4444' : '#3b82f6';
+            statusDiv.style.background = isError ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
+            log(msg);
+        }
+
+        function startOrientation() {
+            window.addEventListener('deviceorientation', handleOrientation);
+            log("Подписались на deviceorientation");
+        }
+
+        function startMotion() {
+            window.addEventListener('devicemotion', handleMotion);
+            log("Подписались на devicemotion");
+        }
+
+        async function requestAccess() {
+            // Сначала пробуем DeviceOrientation (iOS требует разрешение)
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const perm = await DeviceOrientationEvent.requestPermission();
+                    if (perm === 'granted') {
+                        startOrientation();
+                        requestBtn.style.display = 'none';
+                        updateStatus("✅ Доступ к ориентации разрешён (iOS). Если значения null – проверьте настройки Safari → Motion & Orientation Access.");
+                    } else {
+                        updateStatus("❌ Разрешение не дано", true);
+                        return;
+                    }
+                } catch (err) {
+                    updateStatus("Ошибка запроса: " + err.message, true);
+                    return;
+                }
+            } else {
+                // Android / другие – сразу стартуем
+                startOrientation();
+                requestBtn.style.display = 'none';
+                updateStatus("✅ Подписались на датчики (Android). Если значения null – попробуйте слегка повернуть телефон.");
+            }
+
+            // Запрос на DeviceMotion (для акселерометра) – на iOS тоже нужно отдельное разрешение?
+            // На iOS, если разрешили DeviceOrientation, то Motion обычно тоже доступен. Но бывают нюансы.
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    await DeviceMotionEvent.requestPermission();
+                    startMotion();
+                    log("Разрешение на DeviceMotion получено");
+                } catch(e) { log("DeviceMotion permission not granted: " + e.message); }
+            } else {
+                startMotion();
+            }
+        }
+
+        requestBtn.addEventListener('click', requestAccess);
+
+        // На Android без кнопки не стартуем (чтобы не нарушать политику iOS)
+        updateStatus("📱 Нажмите кнопку и при необходимости разрешите доступ");
+    })();
+</script>
+</body>
+</html>        .footnote { font-size: 0.7rem; text-align: center; margin-top: 1rem; color: var(--text); opacity: 0.7; }
+        pre { background: var(--card); padding: 0.5rem; border-radius: 0.8rem; overflow-x: auto; font-size: 0.7rem; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>📱 Ориентация <button class="theme-toggle" id="themeToggle">🌙</button></h1>
+        <div class="status" id="statusMsg">⏳ Нажмите кнопку и разрешите доступ</div>
+
+        <div class="sensor-panel">
+            <div><strong>🧭 DeviceOrientation</strong></div>
+            <div class="data-row"><span>🔄 α (компас):</span><span class="data-value" id="alpha">—</span></div>
+            <div class="data-row"><span>📐 β (наклон X):</span><span class="data-value" id="beta">—</span></div>
+            <div class="data-row"><span>📏 γ (наклон Y):</span><span class="data-value" id="gamma">—</span></div>
+        </div>
+
+        <div class="sensor-panel">
+            <div><strong>⚡ DeviceMotion (акселерометр)</strong></div>
+            <div class="data-row"><span>🎚️ Ускорение X:</span><span class="data-value" id="accX">—</span></div>
+            <div class="data-row"><span>🎚️ Ускорение Y:</span><span class="data-value" id="accY">—</span></div>
+            <div class="data-row"><span>🎚️ Ускорение Z:</span><span class="data-value" id="accZ">—</span></div>
+        </div>
+
+        <button id="requestBtn">🔘 Разрешить доступ к датчикам</button>
+        <div class="footnote">
+            ✔️ Требуется HTTPS или localhost<br>
+            📌 На iOS: настройки Safari → Motion & Orientation Access → ВКЛ<br>
+            📌 На Android: иногда нужно слегка шевельнуть телефон
+        </div>
+        <pre id="debugLog">📡 Логи будут здесь...</pre>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // DOM элементы
+        const alphaSpan = document.getElementById('alpha');
+        const betaSpan = document.getElementById('beta');
+        const gammaSpan = document.getElementById('gamma');
+        const accXSpan = document.getElementById('accX');
+        const accYSpan = document.getElementById('accY');
+        const accZSpan = document.getElementById('accZ');
+        const requestBtn = document.getElementById('requestBtn');
+        const statusDiv = document.getElementById('statusMsg');
+        const debugPre = document.getElementById('debugLog');
+        const themeToggle = document.getElementById('themeToggle');
+
+        // Функция логирования в консоль и на экран
+        function log(msg) {
+            console.log(msg);
+            const p = document.createElement('div');
+            p.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+            debugPre.appendChild(p);
+            debugPre.scrollTop = debugPre.scrollHeight;
+            if (debugPre.children.length > 20) debugPre.removeChild(debugPre.children[0]);
+        }
+
+        // Тёмная тема
+        function setTheme(theme) {
+            if (theme === 'dark') { document.body.classList.add('dark'); localStorage.setItem('theme', 'dark'); themeToggle.innerHTML = '☀️'; }
+            else { document.body.classList.remove('dark'); localStorage.setItem('theme', 'light'); themeToggle.innerHTML = '🌙'; }
+        }
+        const saved = localStorage.getItem('theme');
+        if (saved) setTheme(saved);
+        else setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        themeToggle.onclick = () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+
+        // Обработчики датчиков
+        let orientationActive = false;
+        let motionActive = false;
+
+        function handleOrientation(event) {
+            log(`🔔 deviceorientation: α=${event.alpha}, β=${event.beta}, γ=${event.gamma}`);
+            // ВАЖНО: если значения null — выводим прочерки
+            alphaSpan.textContent = (event.alpha !== null && event.alpha !== undefined) ? event.alpha.toFixed(1) + "°" : "❌ null";
+            betaSpan.textContent  = (event.beta  !== null && event.beta  !== undefined) ? event.beta.toFixed(1)  + "°" : "❌ null";
+            gammaSpan.textContent = (event.gamma !== null && event.gamma !== undefined) ? event.gamma.toFixed(1) + "°" : "❌ null";
+            if (!orientationActive && (event.alpha !== null || event.beta !== null || event.gamma !== null)) {
+                orientationActive = true;
+                updateStatus("✅ Данные ориентации поступают!");
+            } else if (!orientationActive && event.alpha === null && event.beta === null && event.gamma === null) {
+                updateStatus("⚠️ Событие приходит, но все поля null. Проверьте настройки доступа к движению в системе.", true);
+            }
+        }
+
+        function handleMotion(event) {
+            const acc = event.acceleration;
+            if (acc && acc.x !== null) {
+                accXSpan.textContent = acc.x.toFixed(2);
+                accYSpan.textContent = acc.y.toFixed(2);
+                accZSpan.textContent = acc.z.toFixed(2);
+                if (!motionActive) { motionActive = true; log("✅ Акселерометр работает"); }
+            } else {
+                accXSpan.textContent = "—";
+                accYSpan.textContent = "—";
+                accZSpan.textContent = "—";
+            }
+        }
+
+        function updateStatus(msg, isError = false) {
+            statusDiv.innerHTML = msg;
+            statusDiv.style.borderLeftColor = isError ? '#ef4444' : '#3b82f6';
+            statusDiv.style.background = isError ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
+            log(msg);
+        }
+
+        function startOrientation() {
+            window.addEventListener('deviceorientation', handleOrientation);
+            log("Подписались на deviceorientation");
+        }
+
+        function startMotion() {
+            window.addEventListener('devicemotion', handleMotion);
+            log("Подписались на devicemotion");
+        }
+
+        async function requestAccess() {
+            // Сначала пробуем DeviceOrientation (iOS требует разрешение)
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const perm = await DeviceOrientationEvent.requestPermission();
+                    if (perm === 'granted') {
+                        startOrientation();
+                        requestBtn.style.display = 'none';
+                        updateStatus("✅ Доступ к ориентации разрешён (iOS). Если значения null – проверьте настройки Safari → Motion & Orientation Access.");
+                    } else {
+                        updateStatus("❌ Разрешение не дано", true);
+                        return;
+                    }
+                } catch (err) {
+                    updateStatus("Ошибка запроса: " + err.message, true);
+                    return;
+                }
+            } else {
+                // Android / другие – сразу стартуем
+                startOrientation();
+                requestBtn.style.display = 'none';
+                updateStatus("✅ Подписались на датчики (Android). Если значения null – попробуйте слегка повернуть телефон.");
+            }
+
+            // Запрос на DeviceMotion (для акселерометра) – на iOS тоже нужно отдельное разрешение?
+            // На iOS, если разрешили DeviceOrientation, то Motion обычно тоже доступен. Но бывают нюансы.
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    await DeviceMotionEvent.requestPermission();
+                    startMotion();
+                    log("Разрешение на DeviceMotion получено");
+                } catch(e) { log("DeviceMotion permission not granted: " + e.message); }
+            } else {
+                startMotion();
+            }
+        }
+
+        requestBtn.addEventListener('click', requestAccess);
+
+        // На Android без кнопки не стартуем (чтобы не нарушать политику iOS)
+        updateStatus("📱 Нажмите кнопку и при необходимости разрешите доступ");
+    })();
+</script>
+</body>
+</html>
