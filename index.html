@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>Физика шариков — 2D / 3D с датчиками</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Физика шариков — 2D / 3D с датчиками телефона | Куб со всеми рёбрами</title>
     <style>
         * {
             margin: 0;
@@ -14,93 +14,96 @@
 
         body {
             background: #0a0f1e;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
             font-family: system-ui, 'Segoe UI', sans-serif;
-            overflow-x: hidden;
         }
 
-        /* Поле с шариками занимает весь экран (flex-элемент, растущий на всю высоту) */
-        .fullscreen-canvas {
-            flex: 1 0 auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #1e293b;
-            position: relative;
-            min-height: 0;
-            width: 100%;
-        }
-
-        canvas, .three-wrapper {
-            display: block;
+        .app-container {
             width: 100%;
             height: 100%;
-            background: #1e293b;
-        }
-
-        canvas {
-            object-fit: contain;
-        }
-
-        .three-wrapper {
-            position: relative;
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
-        }
-
-        /* Панель управления — скроллится, если нужно */
-        .control-panel {
-            background: #111827;
-            border-top-left-radius: 1.5rem;
-            border-top-right-radius: 1.5rem;
-            padding: 1rem 1rem 1.5rem;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
-            z-index: 10;
+            position: relative;
         }
 
         .tabs {
             display: flex;
             gap: 12px;
-            margin-bottom: 16px;
             justify-content: center;
+            padding: 12px 16px 8px 16px;
+            flex-shrink: 0;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+            border-bottom: 1px solid #2d3a5e;
         }
         .tab-btn {
             background: #1e293b;
             border: none;
-            padding: 8px 24px;
+            padding: 8px 28px;
             border-radius: 3rem;
             font-weight: bold;
             color: #94a3b8;
             font-size: 1rem;
             cursor: pointer;
             transition: 0.2s;
+            font-family: inherit;
         }
         .tab-btn.active {
             background: #3b82f6;
             color: white;
-            box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+            box-shadow: 0 2px 12px rgba(59,130,246,0.4);
         }
+
         .mode-container {
             display: none;
+            flex: 1;
             width: 100%;
-            height: 100%;
+            position: relative;
+            min-height: 0;
         }
         .mode-container.active-mode {
             display: flex;
+            flex-direction: column;
+        }
+
+        #canvas2d {
+            display: block;
             width: 100%;
             height: 100%;
+            background: #111827;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        #threeContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: #0f172a;
+            overflow: hidden;
+        }
+
+        .info-panel {
+            flex-shrink: 0;
+            padding: 8px 16px 6px 16px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            border-top: 1px solid #2d3a5e;
+            z-index: 10;
         }
 
         details {
             background: #0f172ad9;
-            backdrop-filter: blur(4px);
             border-radius: 2rem;
             padding: 6px 12px;
             color: #cbd5e6;
             font-size: 0.75rem;
             font-family: monospace;
-            margin-bottom: 12px;
         }
         summary {
             cursor: pointer;
@@ -111,7 +114,7 @@
             display: flex;
             gap: 16px;
             flex-wrap: wrap;
-            margin-top: 8px;
+            margin-top: 6px;
         }
         .sensor-data span {
             color: #7dd3fc;
@@ -120,108 +123,89 @@
         .status {
             background: #1e2a3a;
             border-radius: 2rem;
-            padding: 6px 12px;
+            padding: 5px 12px;
             font-size: 0.7rem;
             text-align: center;
+            margin-top: 6px;
             color: #94a3b8;
         }
 
-        /* Стрелка прокрутки вниз */
-        .scroll-arrow {
+        .sensor-activate-btn {
+            margin-top: 6px;
+            margin-bottom: 4px;
+            width: 100%;
+            background: #3b82f6;
+            border: none;
+            padding: 8px;
+            border-radius: 3rem;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .sensor-activate-btn:hover {
+            background: #2563eb;
+        }
+
+        .fullscreen-btn {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 48px;
-            height: 48px;
-            background-color: #3b82f6;
+            width: 52px;
+            height: 52px;
             border-radius: 50%;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            font-size: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 20;
-            transition: transform 0.2s, opacity 0.3s;
-            opacity: 0.7;
-        }
-        .scroll-arrow:hover {
-            transform: scale(1.05);
-            opacity: 1;
-        }
-        .scroll-arrow svg {
-            width: 28px;
-            height: 28px;
-            stroke: white;
-            stroke-width: 2;
-            fill: none;
-        }
-
-        /* Оверлей для неправильной ориентации */
-        .orientation-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.95);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             z-index: 1000;
-            color: white;
-            text-align: center;
-            padding: 2rem;
-            backdrop-filter: blur(8px);
+            transition: 0.2s;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            font-family: monospace;
         }
-        .orientation-overlay svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 20px;
-        }
-        .orientation-overlay h2 {
-            margin-bottom: 12px;
-        }
-        .orientation-overlay p {
-            font-size: 1rem;
-            max-width: 250px;
-            opacity: 0.8;
+        .fullscreen-btn:hover {
+            background: rgba(59,130,246,0.8);
+            transform: scale(1.05);
         }
     </style>
 </head>
 <body>
+<div class="app-container">
+    <div class="tabs">
+        <button class="tab-btn active" data-mode="2d">2D • Полный экран</button>
+        <button class="tab-btn" data-mode="3d">3D • Куб (все рёбра)</button>
+    </div>
 
-<div class="fullscreen-canvas" id="fullscreenCanvas">
     <div id="mode2d" class="mode-container active-mode">
         <canvas id="canvas2d"></canvas>
     </div>
+
     <div id="mode3d" class="mode-container">
-        <div id="threeContainer" class="three-wrapper"></div>
+        <div id="threeContainer"></div>
     </div>
-</div>
 
-<div class="control-panel">
-    <div class="tabs">
-        <button class="tab-btn active" data-mode="2d">2D</button>
-        <button class="tab-btn" data-mode="3d">3D</button>
-    </div>
-    <details>
-        <summary>Технические данные датчиков</summary>
-        <div class="sensor-data">
-            Наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°<br>
-            Акселерометр: <span id="accXval">0.00</span> <span id="accYval">0.00</span> <span id="accZval">0.00</span>
+    <div class="info-panel">
+        <details>
+            <summary>📊 Датчики движения</summary>
+            <div class="sensor-data">
+                Наклон β / γ: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°<br>
+                Акселерометр X Y Z: <span id="accXval">0.00</span> / <span id="accYval">0.00</span> / <span id="accZval">0.00</span>
+            </div>
+        </details>
+        <div class="status" id="statusMsg">
+            ⚡ Нажмите кнопку ниже для доступа к датчикам
         </div>
-    </details>
-    <div class="status" id="statusMsg">
-        ⏳ Разрешите доступ к датчикам
+        <button id="requestSensorBtn" class="sensor-activate-btn">🎮 Активировать гироскоп / акселерометр</button>
     </div>
 </div>
 
-<div class="scroll-arrow" id="scrollArrow">
-    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 5v14M19 12l-7 7-7-7"/>
-    </svg>
-</div>
+<div id="fullscreenBtn" class="fullscreen-btn" title="Полноэкранный режим">⛶</div>
 
 <script type="importmap">
     {
@@ -234,339 +218,22 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- Общие датчики ---
+    // --------------------------------------------------------------
+    // 1. ДАТЧИКИ
+    // --------------------------------------------------------------
     let beta = 0, gamma = 0;
     let filteredAccX = 0, filteredAccY = 0, filteredAccZ = 0;
     const ACC_FILTER = 0.3;
     let orientationGranted = false, motionGranted = false;
-    let sensorsActive = false;      // флаг, что датчики разрешены и физика может работать
 
-    // Элементы UI
     const betaSpan = document.getElementById('betaVal');
     const gammaSpan = document.getElementById('gammaVal');
     const accXspan = document.getElementById('accXval');
     const accYspan = document.getElementById('accYval');
     const accZspan = document.getElementById('accZval');
     const statusDiv = document.getElementById('statusMsg');
+    const requestBtn = document.getElementById('requestSensorBtn');
 
-    // --- 2D часть ---
-    let canvas2d = document.getElementById('canvas2d');
-    let ctx = null;
-    let width = 0, height = 0;
-    let particles2d = [];
-    const PARTICLE_COUNT = 12;
-    const GRAVITY_BASE = 950;
-    const ACCEL_SCALE = 180;
-    const ACCEL_BOOST = 1.8;
-    const BASE_AIR_DRAG = 0.995;
-    const NORMAL_FRICTION_FACTOR = 0.75;
-    const BOUNCE_DAMP = 0.85;
-    const COLLISION_ELASTIC = 0.55;
-    const MIN_SPEED = 0.8;
-
-    class Particle2D {
-        constructor(x, y, r, vx=0, vy=0) {
-            this.x = x; this.y = y; this.r = r; this.vx = vx; this.vy = vy; this.mass = r*r;
-        }
-    }
-
-    function init2DParticles() {
-        let pList = [];
-        let radii = [14,12,16,10,13,15,11,14,12,13,16,10];
-        for (let i=0; i<PARTICLE_COUNT; i++) {
-            let r = radii[i%radii.length];
-            let overlap = true, tries=0, x, y;
-            while (overlap && tries<500) {
-                overlap = false;
-                x = r + Math.random()*(width-2*r);
-                y = r + Math.random()*(height-2*r);
-                for (let p of pList) {
-                    if (Math.hypot(p.x-x, p.y-y) < p.r+r) { overlap=true; break; }
-                }
-                tries++;
-            }
-            pList.push(new Particle2D(x,y,r,0,0));
-        }
-        return pList;
-    }
-
-    function handleCollisions2D() {
-        for (let i=0; i<particles2d.length; i++) {
-            for (let j=i+1; j<particles2d.length; j++) {
-                const p1=particles2d[i], p2=particles2d[j];
-                const dx=p2.x-p1.x, dy=p2.y-p1.y;
-                const dist=Math.hypot(dx,dy);
-                const minDist=p1.r+p2.r;
-                if (dist<minDist) {
-                    const overlap=minDist-dist;
-                    const angle=Math.atan2(dy,dx);
-                    const cos=Math.cos(angle), sin=Math.sin(angle);
-                    const move1=overlap*(p2.mass/(p1.mass+p2.mass));
-                    const move2=overlap*(p1.mass/(p1.mass+p2.mass));
-                    p1.x-=move1*cos; p1.y-=move1*sin;
-                    p2.x+=move2*cos; p2.y+=move2*sin;
-                    const vrelx=p2.vx-p1.vx, vrely=p2.vy-p1.vy;
-                    const dot=vrelx*cos+vrely*sin;
-                    if (dot<0) {
-                        const e=COLLISION_ELASTIC;
-                        const m1=p1.mass, m2=p2.mass;
-                        const imp=(1+e)*dot/((1/m1)+(1/m2));
-                        p1.vx+=imp*cos/m1; p1.vy+=imp*sin/m1;
-                        p2.vx-=imp*cos/m2; p2.vy-=imp*sin/m2;
-                    }
-                }
-            }
-        }
-    }
-
-    function handleBoundaries2D() {
-        for (let p of particles2d) {
-            if (p.x-p.r<0) { p.x=p.r; p.vx=-p.vx*BOUNCE_DAMP; }
-            if (p.x+p.r>width) { p.x=width-p.r; p.vx=-p.vx*BOUNCE_DAMP; }
-            if (p.y-p.r<0) { p.y=p.r; p.vy=-p.vy*BOUNCE_DAMP; }
-            if (p.y+p.r>height) { p.y=height-p.r; p.vy=-p.vy*BOUNCE_DAMP; }
-            if (Math.abs(p.vx)<MIN_SPEED && Math.abs(p.vy)<MIN_SPEED &&
-                ((p.x-p.r<2)||(p.x+p.r>width-2)||(p.y-p.r<2)||(p.y+p.r>height-2))) {
-                if (p.x-p.r<2) p.vx+=0.4;
-                if (p.x+p.r>width-2) p.vx-=0.4;
-                if (p.y-p.r<2) p.vy+=0.4;
-                if (p.y+p.r>height-2) p.vy-=0.4;
-            }
-        }
-    }
-
-    function update2DPhysics(dt) {
-        if (!sensorsActive) return;
-        let correctedGamma = gamma;
-        if (beta > 150 || beta < -150) correctedGamma = -gamma;
-        const radBeta = beta * Math.PI/180;
-        const radGamma = correctedGamma * Math.PI/180;
-        let gravX = GRAVITY_BASE * Math.sin(radGamma);
-        let gravY = GRAVITY_BASE * Math.sin(radBeta);
-        let accX = filteredAccX * ACCEL_SCALE;
-        let accY = filteredAccY * ACCEL_SCALE;
-        if (Math.abs(filteredAccX)>5) accX *= ACCEL_BOOST;
-        if (Math.abs(filteredAccY)>5) accY *= ACCEL_BOOST;
-        let totalForceX = gravX + accX;
-        let totalForceY = gravY + accY;
-        let normalForce = Math.abs(Math.cos(radBeta));
-        let dragFactor = 1 - NORMAL_FRICTION_FACTOR * normalForce;
-        let finalDrag = BASE_AIR_DRAG * Math.max(0.98, dragFactor);
-        for (let p of particles2d) {
-            p.vx += totalForceX * dt;
-            p.vy += totalForceY * dt;
-            p.vx *= finalDrag;
-            p.vy *= finalDrag;
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-        }
-        for (let iter=0; iter<3; iter++) {
-            handleCollisions2D();
-            handleBoundaries2D();
-        }
-    }
-
-    function draw2D() {
-        if (!ctx) return;
-        ctx.clearRect(0,0,width,height);
-        ctx.fillStyle="#0f172a";
-        ctx.fillRect(0,0,width,height);
-        ctx.shadowBlur=6;
-        ctx.shadowColor="rgba(0,0,0,0.5)";
-        for(let p of particles2d) {
-            let grad = ctx.createRadialGradient(p.x-3,p.y-3,3,p.x,p.y,p.r);
-            grad.addColorStop(0,'#fbbf24');
-            grad.addColorStop(1,'#ea580c');
-            ctx.fillStyle=grad;
-            ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
-            ctx.strokeStyle="#ffffff80"; ctx.lineWidth=1.2; ctx.stroke();
-        }
-        ctx.shadowBlur=0;
-    }
-
-    function resize2DCanvas() {
-        const container = document.getElementById('mode2d');
-        if (!container) return;
-        const rect = container.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        width = rect.width;
-        height = rect.height;
-        canvas2d.width = width;
-        canvas2d.height = height;
-        if (!ctx) {
-            ctx = canvas2d.getContext('2d');
-        }
-        particles2d = init2DParticles();
-    }
-
-    // --- 3D логика ---
-    let scene, camera, renderer, spheres = [], sphereMeshes = [];
-    let sphereVelocities = [];
-    let threeInit = false;
-    let threeRunning = false;
-    let lastTimestamp3d = 0;
-    const SPHERE_COUNT = 12;
-    const BOX_WIDTH = 4.0, BOX_HEIGHT = 4.0, BOX_DEPTH = 5.0;
-    const SPHERE_RADII = [0.28,0.24,0.32,0.22,0.26,0.3,0.24,0.28,0.24,0.26,0.32,0.24];
-    const GRAVITY_BASE_3D = 14.0;
-    const ACCEL_SCALE_3D = 5.0;
-    const ACCEL_BOOST_3D = 1.2;
-    const AIR_DRAG_3D = 0.99;
-    const WALL_DAMP_3D = 0.90;
-
-    function init3D() {
-        if (threeInit) return;
-        const container = document.getElementById('mode3d');
-        const rect = container.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        threeInit = true;
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0f172a);
-        camera = new THREE.PerspectiveCamera(45, rect.width/rect.height, 0.1, 20);
-        camera.position.set(0, 0, 5.5);
-        camera.lookAt(0, 0, 0);
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(rect.width, rect.height);
-        const threeContainer = document.getElementById('threeContainer');
-        threeContainer.innerHTML = '';
-        threeContainer.appendChild(renderer.domElement);
-
-        const ambientLight = new THREE.AmbientLight(0x404060);
-        scene.add(ambientLight);
-        const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
-        mainLight.position.set(2, 3, 4);
-        scene.add(mainLight);
-        const fillLight = new THREE.PointLight(0x88aaff, 0.4);
-        fillLight.position.set(-1, 1, 2);
-        scene.add(fillLight);
-        const backLight = new THREE.PointLight(0x4466cc, 0.3);
-        backLight.position.set(0, 0, -3);
-        scene.add(backLight);
-
-        const boxGeo = new THREE.BoxGeometry(BOX_WIDTH, BOX_HEIGHT, BOX_DEPTH);
-        const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-        const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
-        const wireframe = new THREE.LineSegments(edgesGeo, wireMat);
-        scene.add(wireframe);
-
-        spheres = [];
-        sphereMeshes = [];
-        sphereVelocities = [];
-        for (let i=0; i<SPHERE_COUNT; i++) {
-            let r = SPHERE_RADII[i%SPHERE_RADII.length];
-            const hue = 0.08 + Math.random() * 0.12;
-            const saturation = 0.6;
-            const lightness = 0.65;
-            const color = new THREE.Color().setHSL(hue, saturation, lightness);
-            const geometry = new THREE.SphereGeometry(r, 48, 48);
-            const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.25, metalness: 0.1 });
-            const sphere = new THREE.Mesh(geometry, material);
-            let x = (Math.random() - 0.5) * (BOX_WIDTH - 2*r);
-            let y = (Math.random() - 0.5) * (BOX_HEIGHT - 2*r);
-            let z = (Math.random() - 0.5) * (BOX_DEPTH - 2*r);
-            sphere.position.set(x, y, z);
-            scene.add(sphere);
-            sphereMeshes.push(sphere);
-            spheres.push({ r: r, mass: r*r*r });
-            sphereVelocities.push({ x:0, y:0, z:0 });
-        }
-    }
-
-    function update3DPhysics(dt) {
-        if (!sensorsActive) return;
-        let correctedGamma = gamma;
-        if (beta > 150 || beta < -150) correctedGamma = -gamma;
-        const radBeta = beta * Math.PI/180;
-        const radGamma = correctedGamma * Math.PI/180;
-        let gravX = GRAVITY_BASE_3D * Math.sin(radGamma);
-        let gravY = -GRAVITY_BASE_3D * Math.sin(radBeta);
-        let gravZ = -GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
-        let accX = filteredAccX * ACCEL_SCALE_3D;
-        let accY = -filteredAccY * ACCEL_SCALE_3D;
-        let accZ = -filteredAccZ * ACCEL_SCALE_3D;
-        if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST_3D;
-        if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST_3D;
-        if (Math.abs(filteredAccZ) > 5) accZ *= ACCEL_BOOST_3D;
-        let totalForceX = gravX + accX;
-        let totalForceY = gravY + accY;
-        let totalForceZ = gravZ + accZ;
-        for (let i=0; i<spheres.length; i++) {
-            let vel = sphereVelocities[i];
-            vel.x += totalForceX * dt;
-            vel.y += totalForceY * dt;
-            vel.z += totalForceZ * dt;
-            vel.x *= AIR_DRAG_3D;
-            vel.y *= AIR_DRAG_3D;
-            vel.z *= AIR_DRAG_3D;
-            let pos = sphereMeshes[i].position;
-            pos.x += vel.x * dt;
-            pos.y += vel.y * dt;
-            pos.z += vel.z * dt;
-            let r = spheres[i].r;
-            let halfX = BOX_WIDTH/2, halfY = BOX_HEIGHT/2, halfZ = BOX_DEPTH/2;
-            if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP_3D; }
-            if (pos.x - r < -halfX) { pos.x = -halfX + r; vel.x = -vel.x * WALL_DAMP_3D; }
-            if (pos.y + r > halfY) { pos.y = halfY - r; vel.y = -vel.y * WALL_DAMP_3D; }
-            if (pos.y - r < -halfY) { pos.y = -halfY + r; vel.y = -vel.y * WALL_DAMP_3D; }
-            if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP_3D; }
-            if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP_3D; }
-        }
-        for (let i=0; i<spheres.length; i++) {
-            for (let j=i+1; j<spheres.length; j++) {
-                let p1 = sphereMeshes[i].position, p2 = sphereMeshes[j].position;
-                let dx = p2.x - p1.x, dy = p2.y - p1.y, dz = p2.z - p1.z;
-                let dist = Math.hypot(dx,dy,dz);
-                let minDist = spheres[i].r + spheres[j].r;
-                if (dist < minDist) {
-                    let overlap = minDist - dist;
-                    let nx = dx/dist, ny = dy/dist, nz = dz/dist;
-                    let corr = overlap * 0.5;
-                    p1.x -= nx * corr; p1.y -= ny * corr; p1.z -= nz * corr;
-                    p2.x += nx * corr; p2.y += ny * corr; p2.z += nz * corr;
-                    let vrelx = sphereVelocities[j].x - sphereVelocities[i].x;
-                    let vrely = sphereVelocities[j].y - sphereVelocities[i].y;
-                    let vrelz = sphereVelocities[j].z - sphereVelocities[i].z;
-                    let dot = vrelx*nx + vrely*ny + vrelz*nz;
-                    if (dot < 0) {
-                        let e = 0.55;
-                        let m1 = spheres[i].mass, m2 = spheres[j].mass;
-                        let imp = (1+e)*dot / ((1/m1)+(1/m2));
-                        sphereVelocities[i].x += imp * nx / m1;
-                        sphereVelocities[i].y += imp * ny / m1;
-                        sphereVelocities[i].z += imp * nz / m1;
-                        sphereVelocities[j].x -= imp * nx / m2;
-                        sphereVelocities[j].y -= imp * ny / m2;
-                        sphereVelocities[j].z -= imp * nz / m2;
-                    }
-                }
-            }
-        }
-    }
-
-    function resize3D() {
-        if (!threeInit || !renderer) return;
-        const container = document.getElementById('mode3d');
-        const rect = container.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        renderer.setSize(rect.width, rect.height);
-        camera.aspect = rect.width / rect.height;
-        camera.updateProjectionMatrix();
-    }
-
-    function animate3D(time) {
-        if (!threeRunning) return;
-        if (!lastTimestamp3d) { lastTimestamp3d = time; requestAnimationFrame(animate3D); return; }
-        let dt = Math.min(0.033, (time - lastTimestamp3d)/1000);
-        if (dt>0) update3DPhysics(dt);
-        lastTimestamp3d = time;
-        if (renderer && scene && camera) {
-            renderer.render(scene, camera);
-        }
-        requestAnimationFrame(animate3D);
-    }
-
-    // --- Датчики ---
     function handleOrientation(e) {
         if (!orientationGranted) return;
         if (e.beta !== null) beta = e.beta;
@@ -574,16 +241,16 @@
         betaSpan.textContent = beta.toFixed(1);
         gammaSpan.textContent = gamma.toFixed(1);
     }
-
+    
     function handleMotion(e) {
         if (!motionGranted) return;
         if (e.acceleration) {
             let rawX = e.acceleration.x || 0;
             let rawY = e.acceleration.y || 0;
             let rawZ = e.acceleration.z || 0;
-            filteredAccX = filteredAccX*(1-ACC_FILTER) + rawX*ACC_FILTER;
-            filteredAccY = filteredAccY*(1-ACC_FILTER) + rawY*ACC_FILTER;
-            filteredAccZ = filteredAccZ*(1-ACC_FILTER) + rawZ*ACC_FILTER;
+            filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawX * ACC_FILTER;
+            filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawY * ACC_FILTER;
+            filteredAccZ = filteredAccZ * (1 - ACC_FILTER) + rawZ * ACC_FILTER;
             accXspan.textContent = filteredAccX.toFixed(2);
             accYspan.textContent = filteredAccY.toFixed(2);
             accZspan.textContent = filteredAccZ.toFixed(2);
@@ -597,7 +264,10 @@
                 if (perm === 'granted') {
                     orientationGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
-                } else { statusDiv.innerHTML = "Отказано в доступе к ориентации"; return; }
+                } else {
+                    statusDiv.innerHTML = "❌ Отказано в доступе к ориентации";
+                    return;
+                }
             } catch(e) { console.warn(e); }
         } else {
             orientationGranted = true;
@@ -615,95 +285,484 @@
             motionGranted = true;
             window.addEventListener('devicemotion', handleMotion);
         }
-        sensorsActive = true;
-        statusDiv.innerHTML = "Датчики активны. Поворачивайте и трясите телефон.";
+        statusDiv.innerHTML = "✅ Датчики активны! Поворачивайте и трясите телефон.";
+        requestBtn.style.opacity = '0.6';
+        requestBtn.disabled = true;
+        requestBtn.textContent = "Датчики активны";
     }
 
-    // --- Блокировка и предупреждение об ориентации ---
-    let orientationOverlay = null;
-
-    function showOrientationWarning() {
-        if (orientationOverlay) return;
-        orientationOverlay = document.createElement('div');
-        orientationOverlay.className = 'orientation-overlay';
-        orientationOverlay.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M2 12L5 9M2 12L5 15M2 12H22M12 2L9 5M12 2L15 5M12 2V22M22 12L19 9M22 12L19 15M12 22L9 19M12 22L15 19" />
-                <path d="M12 8L8 12L12 16L16 12L12 8Z" />
-            </svg>
-            <h2>Пожалуйста, поверните телефон</h2>
-            <p>Для работы страницы необходимо держать устройство в портретной ориентации. Отключите автоповорот экрана и поверните телефон обратно.</p>
-        `;
-        document.body.appendChild(orientationOverlay);
-        sensorsActive = false;   // останавливаем физику
+    requestBtn.addEventListener('click', requestSensors);
+    
+    if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
+        setTimeout(() => {
+            if (!orientationGranted && !motionGranted) {
+                orientationGranted = true;
+                motionGranted = true;
+                window.addEventListener('deviceorientation', handleOrientation);
+                window.addEventListener('devicemotion', handleMotion);
+                statusDiv.innerHTML = "✅ Датчики активны (авто)";
+                requestBtn.style.display = 'none';
+            }
+        }, 500);
     }
 
-    function hideOrientationWarning() {
-        if (orientationOverlay) {
-            orientationOverlay.remove();
-            orientationOverlay = null;
-        }
-        if (orientationGranted && motionGranted) {
-            sensorsActive = true;
-        } else if (orientationGranted || motionGranted) {
-            // если только один из датчиков включён, физика всё равно может работать, но лучше подождать оба
-            sensorsActive = (orientationGranted && motionGranted);
-        } else {
-            sensorsActive = false;
-        }
-    }
-
-    function handleOrientationChange() {
-        const isPortrait = window.matchMedia("(orientation: portrait)").matches;
-        if (!isPortrait) {
-            showOrientationWarning();
-        } else {
-            hideOrientationWarning();
-        }
-    }
-
-    function lockScreenOrientation() {
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('portrait').catch(err => {
-                console.warn("Не удалось заблокировать ориентацию:", err);
-            });
+    // --------------------------------------------------------------
+    // 2. 2D МОДУЛЬ (полноэкранные границы)
+    // --------------------------------------------------------------
+    let canvas2d = document.getElementById('canvas2d');
+    let ctx = canvas2d.getContext('2d');
+    let width = 0, height = 0;
+    let particles2d = [];
+    const PARTICLE_COUNT = 14;
+    const GRAVITY_BASE = 950;
+    const ACCEL_SCALE = 180;
+    const ACCEL_BOOST = 1.8;
+    const BASE_AIR_DRAG = 0.995;
+    const NORMAL_FRICTION_FACTOR = 0.75;
+    const BOUNCE_DAMP = 0.85;
+    const COLLISION_ELASTIC = 0.55;
+    const MIN_SPEED = 0.8;
+    
+    class Particle2D {
+        constructor(x, y, r, vx = 0, vy = 0) {
+            this.x = x; this.y = y; this.r = r; 
+            this.vx = vx; this.vy = vy; 
+            this.mass = r * r;
         }
     }
-
-    // --- Переключение режимов ---
-    let mode2dActive = true;
-    let anim2dId = null;
-    function start2D() {
-        if (anim2dId) cancelAnimationFrame(anim2dId);
-        resize2DCanvas();
-        let last2d = 0;
-        function loop2d(now) {
-            if (!mode2dActive) return;
-            if (!last2d) { last2d = now; requestAnimationFrame(loop2d); return; }
-            let dt = Math.min(0.033, (now - last2d)/1000);
-            if (dt>0) update2DPhysics(dt);
-            last2d = now;
-            draw2D();
-            requestAnimationFrame(loop2d);
+    
+    function init2DParticles(currentWidth, currentHeight) {
+        if (currentWidth === 0 || currentHeight === 0) return [];
+        let pList = [];
+        let radii = [16, 14, 18, 12, 15, 17, 13, 16, 14, 18, 15, 13, 17, 12];
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            let r = radii[i % radii.length];
+            let overlap = true, tries = 0, x, y;
+            while (overlap && tries < 500) {
+                overlap = false;
+                x = r + Math.random() * (currentWidth - 2 * r);
+                y = r + Math.random() * (currentHeight - 2 * r);
+                for (let p of pList) {
+                    if (Math.hypot(p.x - x, p.y - y) < p.r + r) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                tries++;
+            }
+            pList.push(new Particle2D(x, y, r, 0, 0));
         }
-        anim2dId = requestAnimationFrame(loop2d);
+        return pList;
     }
-    function stop2D() { if (anim2dId) cancelAnimationFrame(anim2dId); anim2dId = null; }
-
-    const mode2dDiv = document.getElementById('mode2d');
-    const mode3dDiv = document.getElementById('mode3d');
-    const tabBtns = document.querySelectorAll('.tab-btn');
-
+    
+    function handleCollisions2D() {
+        for (let i = 0; i < particles2d.length; i++) {
+            for (let j = i+1; j < particles2d.length; j++) {
+                const p1 = particles2d[i], p2 = particles2d[j];
+                const dx = p2.x - p1.x, dy = p2.y - p1.y;
+                const dist = Math.hypot(dx, dy);
+                const minDist = p1.r + p2.r;
+                if (dist < minDist) {
+                    const overlap = minDist - dist;
+                    const angle = Math.atan2(dy, dx);
+                    const cos = Math.cos(angle), sin = Math.sin(angle);
+                    const move1 = overlap * (p2.mass / (p1.mass + p2.mass));
+                    const move2 = overlap * (p1.mass / (p1.mass + p2.mass));
+                    p1.x -= move1 * cos; p1.y -= move1 * sin;
+                    p2.x += move2 * cos; p2.y += move2 * sin;
+                    const vrelx = p2.vx - p1.vx, vrely = p2.vy - p1.vy;
+                    const dot = vrelx * cos + vrely * sin;
+                    if (dot < 0) {
+                        const e = COLLISION_ELASTIC;
+                        const m1 = p1.mass, m2 = p2.mass;
+                        const imp = (1 + e) * dot / ((1 / m1) + (1 / m2));
+                        p1.vx += imp * cos / m1; p1.vy += imp * sin / m1;
+                        p2.vx -= imp * cos / m2; p2.vy -= imp * sin / m2;
+                    }
+                }
+            }
+        }
+    }
+    
+    function handleBoundaries2D() {
+        for (let p of particles2d) {
+            if (p.x - p.r < 0) { p.x = p.r; p.vx = -p.vx * BOUNCE_DAMP; }
+            if (p.x + p.r > width) { p.x = width - p.r; p.vx = -p.vx * BOUNCE_DAMP; }
+            if (p.y - p.r < 0) { p.y = p.r; p.vy = -p.vy * BOUNCE_DAMP; }
+            if (p.y + p.r > height) { p.y = height - p.r; p.vy = -p.vy * BOUNCE_DAMP; }
+            if (Math.abs(p.vx) < MIN_SPEED && Math.abs(p.vy) < MIN_SPEED &&
+                ((p.x - p.r < 2) || (p.x + p.r > width - 2) || (p.y - p.r < 2) || (p.y + p.r > height - 2))) {
+                if (p.x - p.r < 2) p.vx += 0.5;
+                if (p.x + p.r > width - 2) p.vx -= 0.5;
+                if (p.y - p.r < 2) p.vy += 0.5;
+                if (p.y + p.r > height - 2) p.vy -= 0.5;
+            }
+        }
+    }
+    
+    function update2DPhysics(dt) {
+        let correctedGamma = gamma;
+        if (beta > 150 || beta < -150) correctedGamma = -gamma;
+        const radBeta = beta * Math.PI / 180;
+        const radGamma = correctedGamma * Math.PI / 180;
+        let gravX = GRAVITY_BASE * Math.sin(radGamma);
+        let gravY = GRAVITY_BASE * Math.sin(radBeta);
+        let accX = filteredAccX * ACCEL_SCALE;
+        let accY = filteredAccY * ACCEL_SCALE;
+        if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST;
+        if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST;
+        let totalForceX = gravX + accX;
+        let totalForceY = gravY + accY;
+        let normalForce = Math.abs(Math.cos(radBeta));
+        let dragFactor = 1 - NORMAL_FRICTION_FACTOR * normalForce;
+        let finalDrag = BASE_AIR_DRAG * Math.max(0.98, dragFactor);
+        for (let p of particles2d) {
+            p.vx += totalForceX * dt;
+            p.vy += totalForceY * dt;
+            p.vx *= finalDrag;
+            p.vy *= finalDrag;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+        }
+        for (let iter = 0; iter < 3; iter++) {
+            handleCollisions2D();
+            handleBoundaries2D();
+        }
+    }
+    
+    function draw2D() {
+        if (!ctx || width === 0 || height === 0) return;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(0, 0, width, height);
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        for (let p of particles2d) {
+            let grad = ctx.createRadialGradient(p.x - 3, p.y - 3, 3, p.x, p.y, p.r);
+            grad.addColorStop(0, '#fbbf24');
+            grad.addColorStop(1, '#ea580c');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#ffffffaa";
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+    }
+    
+    function resizeAndReset2D() {
+        const container = document.getElementById('mode2d');
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        let newWidth = Math.max(100, rect.width);
+        let newHeight = Math.max(100, rect.height);
+        if (newWidth === width && newHeight === height) return;
+        width = newWidth;
+        height = newHeight;
+        canvas2d.width = width;
+        canvas2d.height = height;
+        canvas2d.style.width = `${width}px`;
+        canvas2d.style.height = `${height}px`;
+        particles2d = init2DParticles(width, height);
+    }
+    
+    // --------------------------------------------------------------
+    // 3. 3D МОДУЛЬ — ПЕРСПЕКТИВНАЯ КАМЕРА, ВСЕ РЁБРА КУБА
+    //    Передняя грань точно соответствует экрану (по размерам)
+    // --------------------------------------------------------------
+    let scene, camera, renderer, spheres = [], sphereMeshes = [];
+    let sphereVelocities = [];
+    const SPHERE_COUNT = 14;
+    const BOX_DEPTH = 5.0;          // глубина куба
+    const SPHERE_RADII = [0.28, 0.24, 0.32, 0.22, 0.26, 0.30, 0.26, 0.28, 0.24, 0.30, 0.22, 0.28, 0.26, 0.32];
+    const GRAVITY_BASE_3D = 14.0;
+    const ACCEL_SCALE_3D = 5.2;
+    const ACCEL_BOOST_3D = 1.25;
+    const AIR_DRAG_3D = 0.99;
+    const WALL_DAMP_3D = 0.90;
+    
+    let threeRunning = false;
+    let lastTimestamp3d = 0;
+    let threeContainer = document.getElementById('threeContainer');
+    let currentBoxWidth = 6.0;
+    let currentBoxHeight = 6.0;
+    let wireframeLines = null;
+    
+    // Функция пересчёта размеров куба и положения камеры так, чтобы передняя грань занимала весь экран
+    function updateCubeAndCamera() {
+        if (!threeContainer || !camera) return;
+        const rect = threeContainer.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        const aspect = rect.width / rect.height;
+        
+        // Базовая ширина в мировых координатах = 7.0 (задаём комфортный размер)
+        // Чтобы передняя грань была видна полностью, подбираем размеры
+        const baseWidth = 7.0;
+        const worldWidth = baseWidth;
+        const worldHeight = worldWidth / aspect;
+        currentBoxWidth = worldWidth;
+        currentBoxHeight = worldHeight;
+        
+        // Настройка перспективной камеры: расстояние подбираем так, чтобы передняя грань была видна целиком
+        // Поле зрения по вертикали: tan(fov/2) = (worldHeight/2) / distance
+        // Используем FOV 45 градусов, вычислим дистанцию
+        const fov = 45 * Math.PI / 180;
+        const distance = (worldHeight / 2) / Math.tan(fov / 2);
+        camera.fov = 45;
+        camera.aspect = aspect;
+        camera.position.set(0, 0, distance);
+        camera.lookAt(0, 0, 0);
+        camera.updateProjectionMatrix();
+        
+        // Обновляем каркас куба (все рёбра)
+        if (wireframeLines) scene.remove(wireframeLines);
+        const boxGeo = new THREE.BoxGeometry(currentBoxWidth, currentBoxHeight, BOX_DEPTH);
+        const edgesGeo = new THREE.EdgesGeometry(boxGeo);
+        const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, linewidth: 2 }); // linewidth не везде поддерживается, но цвет яркий
+        wireframeLines = new THREE.LineSegments(edgesGeo, wireMat);
+        wireframeLines.name = "cubeEdges";
+        scene.add(wireframeLines);
+        
+        // Корректируем позиции сфер, чтобы они не вылезали за новые границы
+        const halfX = currentBoxWidth / 2;
+        const halfY = currentBoxHeight / 2;
+        const halfZ = BOX_DEPTH / 2;
+        for (let i = 0; i < sphereMeshes.length; i++) {
+            const r = spheres[i].r;
+            const pos = sphereMeshes[i].position;
+            pos.x = Math.min(Math.max(pos.x, -halfX + r), halfX - r);
+            pos.y = Math.min(Math.max(pos.y, -halfY + r), halfY - r);
+            pos.z = Math.min(Math.max(pos.z, -halfZ + r), halfZ - r);
+        }
+    }
+    
+    function init3D() {
+        if (renderer) {
+            renderer.dispose();
+            while (threeContainer.firstChild) threeContainer.removeChild(threeContainer.firstChild);
+        }
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a);
+        
+        // Перспективная камера
+        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50);
+        camera.position.set(0, 0, 8);
+        camera.lookAt(0, 0, 0);
+        
+        const rect = threeContainer.getBoundingClientRect();
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(rect.width, rect.height);
+        threeContainer.appendChild(renderer.domElement);
+        
+        // Освещение, чтобы сферы выглядели объёмно
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.95);
+        mainLight.position.set(2.5, 3, 4);
+        scene.add(mainLight);
+        const fillLight = new THREE.PointLight(0x88aaff, 0.45);
+        fillLight.position.set(-1.2, 1.2, 2.5);
+        scene.add(fillLight);
+        const backLight = new THREE.PointLight(0x6688dd, 0.35);
+        backLight.position.set(0, 0.5, -3.5);
+        scene.add(backLight);
+        
+        // Сферы
+        spheres = [];
+        sphereMeshes = [];
+        sphereVelocities = [];
+        for (let i = 0; i < SPHERE_COUNT; i++) {
+            let r = SPHERE_RADII[i % SPHERE_RADII.length];
+            const hue = 0.07 + Math.random() * 0.14;
+            const saturation = 0.65;
+            const lightness = 0.68;
+            const color = new THREE.Color().setHSL(hue, saturation, lightness);
+            const geometry = new THREE.SphereGeometry(r, 56, 56);
+            const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.28, metalness: 0.08 });
+            const sphere = new THREE.Mesh(geometry, material);
+            let x = (Math.random() - 0.5) * 5.5;
+            let y = (Math.random() - 0.5) * 5.5;
+            let z = (Math.random() - 0.5) * (BOX_DEPTH - 2 * r);
+            sphere.position.set(x, y, z);
+            scene.add(sphere);
+            sphereMeshes.push(sphere);
+            spheres.push({ r: r, mass: r * r * r });
+            sphereVelocities.push({ x: 0, y: 0, z: 0 });
+        }
+        
+        // Первичная настройка размеров куба
+        updateCubeAndCamera();
+    }
+    
+    function update3DPhysics(dt) {
+        let correctedGamma = gamma;
+        if (beta > 150 || beta < -150) correctedGamma = -gamma;
+        const radBeta = beta * Math.PI / 180;
+        const radGamma = correctedGamma * Math.PI / 180;
+        let gravX = GRAVITY_BASE_3D * Math.sin(radGamma);
+        let gravY = -GRAVITY_BASE_3D * Math.sin(radBeta);
+        let gravZ = -GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
+        let accX = filteredAccX * ACCEL_SCALE_3D;
+        let accY = -filteredAccY * ACCEL_SCALE_3D;
+        let accZ = -filteredAccZ * ACCEL_SCALE_3D;
+        if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST_3D;
+        if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST_3D;
+        if (Math.abs(filteredAccZ) > 5) accZ *= ACCEL_BOOST_3D;
+        
+        let totalForceX = gravX + accX;
+        let totalForceY = gravY + accY;
+        let totalForceZ = gravZ + accZ;
+        
+        const halfX = currentBoxWidth / 2;
+        const halfY = currentBoxHeight / 2;
+        const halfZ = BOX_DEPTH / 2;
+        
+        for (let i = 0; i < spheres.length; i++) {
+            let vel = sphereVelocities[i];
+            vel.x += totalForceX * dt;
+            vel.y += totalForceY * dt;
+            vel.z += totalForceZ * dt;
+            vel.x *= AIR_DRAG_3D;
+            vel.y *= AIR_DRAG_3D;
+            vel.z *= AIR_DRAG_3D;
+            let pos = sphereMeshes[i].position;
+            pos.x += vel.x * dt;
+            pos.y += vel.y * dt;
+            pos.z += vel.z * dt;
+            let r = spheres[i].r;
+            if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP_3D; }
+            if (pos.x - r < -halfX) { pos.x = -halfX + r; vel.x = -vel.x * WALL_DAMP_3D; }
+            if (pos.y + r > halfY) { pos.y = halfY - r; vel.y = -vel.y * WALL_DAMP_3D; }
+            if (pos.y - r < -halfY) { pos.y = -halfY + r; vel.y = -vel.y * WALL_DAMP_3D; }
+            if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP_3D; }
+            if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP_3D; }
+        }
+        
+        // Коллизии между сферами
+        for (let i = 0; i < spheres.length; i++) {
+            for (let j = i+1; j < spheres.length; j++) {
+                let p1 = sphereMeshes[i].position, p2 = sphereMeshes[j].position;
+                let dx = p2.x - p1.x, dy = p2.y - p1.y, dz = p2.z - p1.z;
+                let dist = Math.hypot(dx, dy, dz);
+                let minDist = spheres[i].r + spheres[j].r;
+                if (dist < minDist) {
+                    let overlap = minDist - dist;
+                    let nx = dx / dist, ny = dy / dist, nz = dz / dist;
+                    let corr = overlap * 0.5;
+                    p1.x -= nx * corr; p1.y -= ny * corr; p1.z -= nz * corr;
+                    p2.x += nx * corr; p2.y += ny * corr; p2.z += nz * corr;
+                    let vrelx = sphereVelocities[j].x - sphereVelocities[i].x;
+                    let vrely = sphereVelocities[j].y - sphereVelocities[i].y;
+                    let vrelz = sphereVelocities[j].z - sphereVelocities[i].z;
+                    let dot = vrelx * nx + vrely * ny + vrelz * nz;
+                    if (dot < 0) {
+                        let e = 0.55;
+                        let m1 = spheres[i].mass, m2 = spheres[j].mass;
+                        let imp = (1 + e) * dot / ((1 / m1) + (1 / m2));
+                        sphereVelocities[i].x += imp * nx / m1;
+                        sphereVelocities[i].y += imp * ny / m1;
+                        sphereVelocities[i].z += imp * nz / m1;
+                        sphereVelocities[j].x -= imp * nx / m2;
+                        sphereVelocities[j].y -= imp * ny / m2;
+                        sphereVelocities[j].z -= imp * nz / m2;
+                    }
+                }
+            }
+        }
+    }
+    
+    function animate3D(time) {
+        if (!threeRunning) return;
+        if (!lastTimestamp3d) { lastTimestamp3d = time; requestAnimationFrame(animate3D); return; }
+        let dt = Math.min(0.033, (time - lastTimestamp3d) / 1000);
+        if (dt > 0) update3DPhysics(dt);
+        lastTimestamp3d = time;
+        if (renderer && scene && camera && threeContainer) {
+            const rect = threeContainer.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                // Обновляем размер рендера и камеру, если соотношение изменилось
+                if (renderer.domElement.width !== rect.width || renderer.domElement.height !== rect.height) {
+                    renderer.setSize(rect.width, rect.height);
+                    updateCubeAndCamera();   // пересчёт размеров куба и камеры
+                }
+            }
+            renderer.render(scene, camera);
+        }
+        requestAnimationFrame(animate3D);
+    }
+    
+    function start3D() {
+        if (threeRunning) return;
+        init3D();
+        threeRunning = true;
+        lastTimestamp3d = 0;
+        requestAnimationFrame(animate3D);
+    }
+    
     function stop3D() {
         threeRunning = false;
         if (renderer) {
             renderer.dispose();
-            const threeContainer = document.getElementById('threeContainer');
             if (threeContainer) threeContainer.innerHTML = '';
-            threeInit = false;
+            renderer = null;
         }
     }
-
+    
+    // --------------------------------------------------------------
+    // 4. ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ И RESIZE
+    // --------------------------------------------------------------
+    let mode2dActive = true;
+    let anim2dId = null;
+    
+    function start2DAnimation() {
+        if (anim2dId) cancelAnimationFrame(anim2dId);
+        let lastTime = 0;
+        function loop2d(now) {
+            if (!mode2dActive) return;
+            if (!lastTime) { lastTime = now; requestAnimationFrame(loop2d); return; }
+            let dt = Math.min(0.033, (now - lastTime) / 1000);
+            if (dt > 0 && width > 0 && height > 0 && particles2d.length) {
+                update2DPhysics(dt);
+                draw2D();
+            }
+            lastTime = now;
+            requestAnimationFrame(loop2d);
+        }
+        anim2dId = requestAnimationFrame(loop2d);
+    }
+    
+    function stop2DAnimation() {
+        if (anim2dId) { cancelAnimationFrame(anim2dId); anim2dId = null; }
+    }
+    
+    function handleGlobalResize() {
+        if (mode2dActive) {
+            resizeAndReset2D();
+        } else {
+            if (renderer && threeContainer) {
+                const rect = threeContainer.getBoundingClientRect();
+                if (rect.width && rect.height) {
+                    renderer.setSize(rect.width, rect.height);
+                    updateCubeAndCamera();
+                }
+            }
+        }
+    }
+    
+    window.addEventListener('resize', handleGlobalResize);
+    
+    function init2DFullscreen() {
+        resizeAndReset2D();
+        start2DAnimation();
+    }
+    
+    const mode2dDiv = document.getElementById('mode2d');
+    const mode3dDiv = document.getElementById('mode3d');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             tabBtns.forEach(b => b.classList.remove('active'));
@@ -713,79 +772,44 @@
                 mode2dDiv.classList.add('active-mode');
                 mode3dDiv.classList.remove('active-mode');
                 stop3D();
-                start2D();
+                stop2DAnimation();
+                resizeAndReset2D();
+                start2DAnimation();
             } else {
                 mode2dActive = false;
                 mode2dDiv.classList.remove('active-mode');
                 mode3dDiv.classList.add('active-mode');
-                stop2D();
-                init3D();
-                threeRunning = true;
-                lastTimestamp3d = 0;
-                requestAnimationFrame(animate3D);
-                resize3D();
+                stop2DAnimation();
+                start3D();
             }
         });
     });
-
-    // --- Обсервер за изменением размеров контейнера ---
-    const resizeObserver = new ResizeObserver(() => {
-        if (mode2dActive) {
-            resize2DCanvas();
+    
+    init2DFullscreen();
+    
+    // --------------------------------------------------------------
+    // 5. ПОЛНОЭКРАННАЯ КНОПКА
+    // --------------------------------------------------------------
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.warn(`Ошибка fullscreen: ${err.message}`);
+            });
         } else {
-            if (threeInit) resize3D();
+            document.exitFullscreen();
+        }
+    }
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) {
+            fullscreenBtn.textContent = '✕';
+            fullscreenBtn.title = 'Выйти из полноэкранного режима';
+        } else {
+            fullscreenBtn.textContent = '⛶';
+            fullscreenBtn.title = 'Полноэкранный режим';
         }
     });
-    resizeObserver.observe(document.getElementById('fullscreenCanvas'));
-
-    // --- Стрелка прокрутки ---
-    document.getElementById('scrollArrow').addEventListener('click', () => {
-        document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-
-    // --- Старт ---
-    window.addEventListener('load', () => {
-        // Инициализация 2D
-        resize2DCanvas();
-        start2D();
-        // Проверка ориентации при загрузке
-        handleOrientationChange();
-        // Обработчики изменения ориентации
-        window.addEventListener('resize', handleOrientationChange);
-        window.addEventListener('orientationchange', handleOrientationChange);
-    });
-
-    // Кнопка активации датчиков
-    const requestBtn = document.createElement('button');
-    requestBtn.textContent = "Активировать датчики";
-    requestBtn.style.marginTop = "8px";
-    requestBtn.style.width = "100%";
-    document.querySelector('.status').after(requestBtn);
-    requestBtn.addEventListener('click', () => {
-        requestSensors();
-        requestBtn.style.display = 'none';
-        lockScreenOrientation();
-        handleOrientationChange();  // ещё раз проверим после блокировки
-    });
-
-    // Для Android – автоактивация
-    if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
-        setTimeout(() => {
-            if (!orientationGranted && !motionGranted) {
-                orientationGranted = true;
-                motionGranted = true;
-                window.addEventListener('deviceorientation', handleOrientation);
-                window.addEventListener('devicemotion', handleMotion);
-                statusDiv.innerHTML = "Датчики активны (Android)";
-                requestBtn.style.display = 'none';
-                sensorsActive = true;
-                lockScreenOrientation();
-                handleOrientationChange();
-                window.addEventListener('resize', handleOrientationChange);
-                window.addEventListener('orientationchange', handleOrientationChange);
-            }
-        }, 500);
-    }
 </script>
 </body>
 </html>
