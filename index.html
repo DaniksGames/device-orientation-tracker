@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика шариков — 2D / 3D с датчиками телефона</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <title>Физика шариков — 2D / 3D с датчиками</title>
     <style>
         * {
             margin: 0;
@@ -16,22 +16,47 @@
             background: #0a0f1e;
             min-height: 100vh;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
             font-family: system-ui, 'Segoe UI', sans-serif;
-            padding: 12px;
             overflow-x: hidden;
         }
 
-        .app-container {
-            max-width: 750px;
+        /* Поле с шариками занимает весь экран (flex-элемент, растущий на всю высоту) */
+        .fullscreen-canvas {
+            flex: 1 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1e293b;
+            position: relative;
+            min-height: 0;
             width: 100%;
-            background: #111827;
-            border-radius: 2rem;
-            padding: 1rem;
-            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.5);
-            border: 1px solid #2d3a5e;
+        }
+
+        canvas, .three-wrapper {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #1e293b;
+        }
+
+        canvas {
+            object-fit: contain;
+        }
+
+        .three-wrapper {
+            position: relative;
             overflow: hidden;
+        }
+
+        /* Панель управления — скроллится, если нужно */
+        .control-panel {
+            background: #111827;
+            border-top-left-radius: 1.5rem;
+            border-top-right-radius: 1.5rem;
+            padding: 1rem 1rem 1.5rem;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+            z-index: 10;
         }
 
         .tabs {
@@ -58,24 +83,13 @@
         }
         .mode-container {
             display: none;
+            width: 100%;
+            height: 100%;
         }
         .mode-container.active-mode {
-            display: block;
-        }
-
-        canvas, .three-canvas {
-            display: block;
-            margin: 0 auto;
-            background: #1e293b;
-            border-radius: 1.5rem;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
             width: 100%;
-            height: auto;
-        }
-
-        .info-panel {
-            margin-top: 16px;
-            margin-bottom: 8px;
+            height: 100%;
         }
 
         details {
@@ -86,6 +100,7 @@
             color: #cbd5e6;
             font-size: 0.75rem;
             font-family: monospace;
+            margin-bottom: 12px;
         }
         summary {
             cursor: pointer;
@@ -108,38 +123,104 @@
             padding: 6px 12px;
             font-size: 0.7rem;
             text-align: center;
-            margin-top: 12px;
             color: #94a3b8;
+        }
+
+        /* Стрелка прокрутки вниз */
+        .scroll-arrow {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            background-color: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 20;
+            transition: transform 0.2s, opacity 0.3s;
+            opacity: 0.7;
+        }
+        .scroll-arrow:hover {
+            transform: scale(1.05);
+            opacity: 1;
+        }
+        .scroll-arrow svg {
+            width: 28px;
+            height: 28px;
+            stroke: white;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* Оверлей для неправильной ориентации */
+        .orientation-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+            backdrop-filter: blur(8px);
+        }
+        .orientation-overlay svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+        }
+        .orientation-overlay h2 {
+            margin-bottom: 12px;
+        }
+        .orientation-overlay p {
+            font-size: 1rem;
+            max-width: 250px;
+            opacity: 0.8;
         }
     </style>
 </head>
 <body>
-<div class="app-container">
+
+<div class="fullscreen-canvas" id="fullscreenCanvas">
+    <div id="mode2d" class="mode-container active-mode">
+        <canvas id="canvas2d"></canvas>
+    </div>
+    <div id="mode3d" class="mode-container">
+        <div id="threeContainer" class="three-wrapper"></div>
+    </div>
+</div>
+
+<div class="control-panel">
     <div class="tabs">
         <button class="tab-btn active" data-mode="2d">2D</button>
         <button class="tab-btn" data-mode="3d">3D</button>
     </div>
-
-    <div id="mode2d" class="mode-container active-mode">
-        <canvas id="canvas2d" width="600" height="500" style="width:100%; height:auto; max-width:600px; aspect-ratio:600/500"></canvas>
-    </div>
-
-    <div id="mode3d" class="mode-container">
-        <div id="threeContainer" style="position:relative; width:100%; aspect-ratio:600/500;"></div>
-    </div>
-
-    <div class="info-panel">
-        <details>
-            <summary>Технические данные датчиков</summary>
-            <div class="sensor-data">
-                Наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°<br>
-                Акселерометр: <span id="accXval">0.00</span> <span id="accYval">0.00</span> <span id="accZval">0.00</span>
-            </div>
-        </details>
-    </div>
+    <details>
+        <summary>Технические данные датчиков</summary>
+        <div class="sensor-data">
+            Наклон: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°<br>
+            Акселерометр: <span id="accXval">0.00</span> <span id="accYval">0.00</span> <span id="accZval">0.00</span>
+        </div>
+    </details>
     <div class="status" id="statusMsg">
         ⏳ Разрешите доступ к датчикам
     </div>
+</div>
+
+<div class="scroll-arrow" id="scrollArrow">
+    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M19 12l-7 7-7-7"/>
+    </svg>
 </div>
 
 <script type="importmap">
@@ -158,20 +239,20 @@
     let filteredAccX = 0, filteredAccY = 0, filteredAccZ = 0;
     const ACC_FILTER = 0.3;
     let orientationGranted = false, motionGranted = false;
+    let sensorsActive = false;      // флаг, что датчики разрешены и физика может работать
 
+    // Элементы UI
     const betaSpan = document.getElementById('betaVal');
     const gammaSpan = document.getElementById('gammaVal');
     const accXspan = document.getElementById('accXval');
     const accYspan = document.getElementById('accYval');
     const accZspan = document.getElementById('accZval');
     const statusDiv = document.getElementById('statusMsg');
-    
-    // --- 2D (без сетки, без кнопки сброса) ---
+
+    // --- 2D часть ---
     let canvas2d = document.getElementById('canvas2d');
-    let ctx = canvas2d.getContext('2d');
-    let width = 600, height = 500;
-    canvas2d.width = width; canvas2d.height = height;
-    
+    let ctx = null;
+    let width = 0, height = 0;
     let particles2d = [];
     const PARTICLE_COUNT = 12;
     const GRAVITY_BASE = 950;
@@ -182,13 +263,13 @@
     const BOUNCE_DAMP = 0.85;
     const COLLISION_ELASTIC = 0.55;
     const MIN_SPEED = 0.8;
-    
+
     class Particle2D {
         constructor(x, y, r, vx=0, vy=0) {
             this.x = x; this.y = y; this.r = r; this.vx = vx; this.vy = vy; this.mass = r*r;
         }
     }
-    
+
     function init2DParticles() {
         let pList = [];
         let radii = [14,12,16,10,13,15,11,14,12,13,16,10];
@@ -208,7 +289,7 @@
         }
         return pList;
     }
-    
+
     function handleCollisions2D() {
         for (let i=0; i<particles2d.length; i++) {
             for (let j=i+1; j<particles2d.length; j++) {
@@ -237,7 +318,7 @@
             }
         }
     }
-    
+
     function handleBoundaries2D() {
         for (let p of particles2d) {
             if (p.x-p.r<0) { p.x=p.r; p.vx=-p.vx*BOUNCE_DAMP; }
@@ -253,8 +334,9 @@
             }
         }
     }
-    
+
     function update2DPhysics(dt) {
+        if (!sensorsActive) return;
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
         const radBeta = beta * Math.PI/180;
@@ -284,21 +366,11 @@
         }
     }
 
-function lockOrientation() {
-    if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('portrait').catch(e => console.warn('Не удалось заблокировать:', e));
-    }
-}
-// Запросим блокировку после любого жеста пользователя (например, после активации датчиков)
-document.getElementById('requestBtn')?.addEventListener('click', lockOrientation);
-// Или при старте, если разрешение уже было
-lockOrientation();
-    
     function draw2D() {
+        if (!ctx) return;
         ctx.clearRect(0,0,width,height);
         ctx.fillStyle="#0f172a";
         ctx.fillRect(0,0,width,height);
-        // Сетка полностью убрана
         ctx.shadowBlur=6;
         ctx.shadowColor="rgba(0,0,0,0.5)";
         for(let p of particles2d) {
@@ -311,43 +383,55 @@ lockOrientation();
         }
         ctx.shadowBlur=0;
     }
-    
-    // --- 3D с исправленным направлением Z, мягкими цветами, высоким разрешением ---
+
+    function resize2DCanvas() {
+        const container = document.getElementById('mode2d');
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        width = rect.width;
+        height = rect.height;
+        canvas2d.width = width;
+        canvas2d.height = height;
+        if (!ctx) {
+            ctx = canvas2d.getContext('2d');
+        }
+        particles2d = init2DParticles();
+    }
+
+    // --- 3D логика ---
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
+    let threeInit = false;
+    let threeRunning = false;
+    let lastTimestamp3d = 0;
     const SPHERE_COUNT = 12;
-    const BOX_WIDTH = 4.0;
-    const BOX_HEIGHT = 4.0;
-    const BOX_DEPTH = 5.0;
+    const BOX_WIDTH = 4.0, BOX_HEIGHT = 4.0, BOX_DEPTH = 5.0;
     const SPHERE_RADII = [0.28,0.24,0.32,0.22,0.26,0.3,0.24,0.28,0.24,0.26,0.32,0.24];
-    
-    // Коэффициенты 3D (оставлены малыми, чтобы не было сверхскоростей)
     const GRAVITY_BASE_3D = 14.0;
     const ACCEL_SCALE_3D = 5.0;
     const ACCEL_BOOST_3D = 1.2;
     const AIR_DRAG_3D = 0.99;
     const WALL_DAMP_3D = 0.90;
-    
-    let lastTimestamp3d = 0;
-    let threeRunning = false;
-    let threeContainer = document.getElementById('threeContainer');
-    
+
     function init3D() {
-        if (renderer) {
-            renderer.dispose();
-            threeContainer.innerHTML = '';
-        }
+        if (threeInit) return;
+        const container = document.getElementById('mode3d');
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        threeInit = true;
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0f172a);
-        camera = new THREE.PerspectiveCamera(50, 1, 0.1, 20);
+        camera = new THREE.PerspectiveCamera(45, rect.width/rect.height, 0.1, 20);
         camera.position.set(0, 0, 5.5);
         camera.lookAt(0, 0, 0);
         renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio); // высокое разрешение
-        renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(rect.width, rect.height);
+        const threeContainer = document.getElementById('threeContainer');
+        threeContainer.innerHTML = '';
         threeContainer.appendChild(renderer.domElement);
-        
-        // Освещение более мягкое
+
         const ambientLight = new THREE.AmbientLight(0x404060);
         scene.add(ambientLight);
         const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -359,22 +443,19 @@ lockOrientation();
         const backLight = new THREE.PointLight(0x4466cc, 0.3);
         backLight.position.set(0, 0, -3);
         scene.add(backLight);
-        
-        // Только рёбра куба (без прозрачных граней и сетки)
+
         const boxGeo = new THREE.BoxGeometry(BOX_WIDTH, BOX_HEIGHT, BOX_DEPTH);
         const edgesGeo = new THREE.EdgesGeometry(boxGeo);
         const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
         const wireframe = new THREE.LineSegments(edgesGeo, wireMat);
         scene.add(wireframe);
-        
-        // Сферы с высоким качеством (48 сегментов)
+
         spheres = [];
         sphereMeshes = [];
         sphereVelocities = [];
         for (let i=0; i<SPHERE_COUNT; i++) {
             let r = SPHERE_RADII[i%SPHERE_RADII.length];
-            // Мягкие, приглушённые цвета (пастельные)
-            const hue = 0.08 + Math.random() * 0.12; // от оранжевого до жёлто-зелёного
+            const hue = 0.08 + Math.random() * 0.12;
             const saturation = 0.6;
             const lightness = 0.65;
             const color = new THREE.Color().setHSL(hue, saturation, lightness);
@@ -390,48 +471,26 @@ lockOrientation();
             spheres.push({ r: r, mass: r*r*r });
             sphereVelocities.push({ x:0, y:0, z:0 });
         }
-        
-        window.addEventListener('resize', () => {
-            if (threeContainer.clientWidth) {
-                renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
-                camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
-                camera.updateProjectionMatrix();
-            }
-        });
-        setTimeout(() => {
-            if (threeContainer.clientWidth) {
-                renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
-                camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
-                camera.updateProjectionMatrix();
-            }
-        }, 100);
     }
-    
+
     function update3DPhysics(dt) {
+        if (!sensorsActive) return;
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
         const radBeta = beta * Math.PI/180;
         const radGamma = correctedGamma * Math.PI/180;
-        
-        // Гравитация: X (боковой наклон)
         let gravX = GRAVITY_BASE_3D * Math.sin(radGamma);
-        // Y (верх-низ) – инвертирована, чтобы наклон вперёд толкал вниз
         let gravY = -GRAVITY_BASE_3D * Math.sin(radBeta);
-        // Z (глубина) – ИНВЕРТИРОВАНА: теперь при наклоне экрана вверх шары летят внутрь (+Z)
         let gravZ = -GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
-        
-        // Акселерометр (все оси с инверсией Z для согласованности)
         let accX = filteredAccX * ACCEL_SCALE_3D;
         let accY = -filteredAccY * ACCEL_SCALE_3D;
         let accZ = -filteredAccZ * ACCEL_SCALE_3D;
         if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST_3D;
         if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST_3D;
         if (Math.abs(filteredAccZ) > 5) accZ *= ACCEL_BOOST_3D;
-        
         let totalForceX = gravX + accX;
         let totalForceY = gravY + accY;
         let totalForceZ = gravZ + accZ;
-        
         for (let i=0; i<spheres.length; i++) {
             let vel = sphereVelocities[i];
             vel.x += totalForceX * dt;
@@ -440,12 +499,10 @@ lockOrientation();
             vel.x *= AIR_DRAG_3D;
             vel.y *= AIR_DRAG_3D;
             vel.z *= AIR_DRAG_3D;
-            
             let pos = sphereMeshes[i].position;
             pos.x += vel.x * dt;
             pos.y += vel.y * dt;
             pos.z += vel.z * dt;
-            
             let r = spheres[i].r;
             let halfX = BOX_WIDTH/2, halfY = BOX_HEIGHT/2, halfZ = BOX_DEPTH/2;
             if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP_3D; }
@@ -455,8 +512,6 @@ lockOrientation();
             if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP_3D; }
             if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP_3D; }
         }
-        
-        // Коллизии между сферами
         for (let i=0; i<spheres.length; i++) {
             for (let j=i+1; j<spheres.length; j++) {
                 let p1 = sphereMeshes[i].position, p2 = sphereMeshes[j].position;
@@ -488,7 +543,17 @@ lockOrientation();
             }
         }
     }
-    
+
+    function resize3D() {
+        if (!threeInit || !renderer) return;
+        const container = document.getElementById('mode3d');
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        renderer.setSize(rect.width, rect.height);
+        camera.aspect = rect.width / rect.height;
+        camera.updateProjectionMatrix();
+    }
+
     function animate3D(time) {
         if (!threeRunning) return;
         if (!lastTimestamp3d) { lastTimestamp3d = time; requestAnimationFrame(animate3D); return; }
@@ -500,7 +565,7 @@ lockOrientation();
         }
         requestAnimationFrame(animate3D);
     }
-    
+
     // --- Датчики ---
     function handleOrientation(e) {
         if (!orientationGranted) return;
@@ -509,6 +574,7 @@ lockOrientation();
         betaSpan.textContent = beta.toFixed(1);
         gammaSpan.textContent = gamma.toFixed(1);
     }
+
     function handleMotion(e) {
         if (!motionGranted) return;
         if (e.acceleration) {
@@ -523,7 +589,7 @@ lockOrientation();
             accZspan.textContent = filteredAccZ.toFixed(2);
         }
     }
-    
+
     async function requestSensors() {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             try {
@@ -549,14 +615,67 @@ lockOrientation();
             motionGranted = true;
             window.addEventListener('devicemotion', handleMotion);
         }
+        sensorsActive = true;
         statusDiv.innerHTML = "Датчики активны. Поворачивайте и трясите телефон.";
     }
-    
+
+    // --- Блокировка и предупреждение об ориентации ---
+    let orientationOverlay = null;
+
+    function showOrientationWarning() {
+        if (orientationOverlay) return;
+        orientationOverlay = document.createElement('div');
+        orientationOverlay.className = 'orientation-overlay';
+        orientationOverlay.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12L5 9M2 12L5 15M2 12H22M12 2L9 5M12 2L15 5M12 2V22M22 12L19 9M22 12L19 15M12 22L9 19M12 22L15 19" />
+                <path d="M12 8L8 12L12 16L16 12L12 8Z" />
+            </svg>
+            <h2>Пожалуйста, поверните телефон</h2>
+            <p>Для работы страницы необходимо держать устройство в портретной ориентации. Отключите автоповорот экрана и поверните телефон обратно.</p>
+        `;
+        document.body.appendChild(orientationOverlay);
+        sensorsActive = false;   // останавливаем физику
+    }
+
+    function hideOrientationWarning() {
+        if (orientationOverlay) {
+            orientationOverlay.remove();
+            orientationOverlay = null;
+        }
+        if (orientationGranted && motionGranted) {
+            sensorsActive = true;
+        } else if (orientationGranted || motionGranted) {
+            // если только один из датчиков включён, физика всё равно может работать, но лучше подождать оба
+            sensorsActive = (orientationGranted && motionGranted);
+        } else {
+            sensorsActive = false;
+        }
+    }
+
+    function handleOrientationChange() {
+        const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+        if (!isPortrait) {
+            showOrientationWarning();
+        } else {
+            hideOrientationWarning();
+        }
+    }
+
+    function lockScreenOrientation() {
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('portrait').catch(err => {
+                console.warn("Не удалось заблокировать ориентацию:", err);
+            });
+        }
+    }
+
     // --- Переключение режимов ---
     let mode2dActive = true;
     let anim2dId = null;
     function start2D() {
         if (anim2dId) cancelAnimationFrame(anim2dId);
+        resize2DCanvas();
         let last2d = 0;
         function loop2d(now) {
             if (!mode2dActive) return;
@@ -570,11 +689,21 @@ lockOrientation();
         anim2dId = requestAnimationFrame(loop2d);
     }
     function stop2D() { if (anim2dId) cancelAnimationFrame(anim2dId); anim2dId = null; }
-    
+
     const mode2dDiv = document.getElementById('mode2d');
     const mode3dDiv = document.getElementById('mode3d');
     const tabBtns = document.querySelectorAll('.tab-btn');
-    
+
+    function stop3D() {
+        threeRunning = false;
+        if (renderer) {
+            renderer.dispose();
+            const threeContainer = document.getElementById('threeContainer');
+            if (threeContainer) threeContainer.innerHTML = '';
+            threeInit = false;
+        }
+    }
+
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             tabBtns.forEach(b => b.classList.remove('active'));
@@ -594,50 +723,69 @@ lockOrientation();
                 threeRunning = true;
                 lastTimestamp3d = 0;
                 requestAnimationFrame(animate3D);
+                resize3D();
             }
         });
     });
-    
-    function stop3D() {
-        threeRunning = false;
-        if (renderer) {
-            renderer.dispose();
-            threeContainer.innerHTML = '';
+
+    // --- Обсервер за изменением размеров контейнера ---
+    const resizeObserver = new ResizeObserver(() => {
+        if (mode2dActive) {
+            resize2DCanvas();
+        } else {
+            if (threeInit) resize3D();
         }
-    }
-    
-    // Инициализация 2D
-    particles2d = init2DParticles();
-    start2D();
-    
+    });
+    resizeObserver.observe(document.getElementById('fullscreenCanvas'));
+
+    // --- Стрелка прокрутки ---
+    document.getElementById('scrollArrow').addEventListener('click', () => {
+        document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // --- Старт ---
+    window.addEventListener('load', () => {
+        // Инициализация 2D
+        resize2DCanvas();
+        start2D();
+        // Проверка ориентации при загрузке
+        handleOrientationChange();
+        // Обработчики изменения ориентации
+        window.addEventListener('resize', handleOrientationChange);
+        window.addEventListener('orientationchange', handleOrientationChange);
+    });
+
     // Кнопка активации датчиков
     const requestBtn = document.createElement('button');
     requestBtn.textContent = "Активировать датчики";
     requestBtn.style.marginTop = "8px";
     requestBtn.style.width = "100%";
     document.querySelector('.status').after(requestBtn);
-    requestBtn.addEventListener('click', () => { requestSensors(); requestBtn.style.display = 'none'; });
-    
-    // Автоактивация для Android
+    requestBtn.addEventListener('click', () => {
+        requestSensors();
+        requestBtn.style.display = 'none';
+        lockScreenOrientation();
+        handleOrientationChange();  // ещё раз проверим после блокировки
+    });
+
+    // Для Android – автоактивация
     if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
         setTimeout(() => {
             if (!orientationGranted && !motionGranted) {
-                orientationGranted = true; motionGranted = true;
+                orientationGranted = true;
+                motionGranted = true;
                 window.addEventListener('deviceorientation', handleOrientation);
                 window.addEventListener('devicemotion', handleMotion);
                 statusDiv.innerHTML = "Датчики активны (Android)";
                 requestBtn.style.display = 'none';
+                sensorsActive = true;
+                lockScreenOrientation();
+                handleOrientationChange();
+                window.addEventListener('resize', handleOrientationChange);
+                window.addEventListener('orientationchange', handleOrientationChange);
             }
         }, 500);
     }
-    
-    function resizeCanvas2D() {
-        let container = canvas2d.parentElement;
-        let maxW = Math.min(600, container.clientWidth);
-        canvas2d.style.width = `${maxW}px`;
-    }
-    window.addEventListener('resize', resizeCanvas2D);
-    resizeCanvas2D();
 </script>
 </body>
 </html>
