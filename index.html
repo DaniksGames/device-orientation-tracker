@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика шариков — 2D / 3D с датчиками телефона | Полноэкранный 3D-куб</title>
+    <title>Физика шариков — 2D / 3D с датчиками телефона</title>
     <style>
         * {
             margin: 0;
@@ -30,7 +30,7 @@
             position: relative;
         }
 
-        /* Верхняя панель и информационная панель — будут скрываться в полноэкранном режиме */
+        /* Верхняя панель и информационная панель — скрываются в полноэкранном режиме */
         .tabs, .info-panel {
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
@@ -46,7 +46,6 @@
             transform: translateY(100%);
         }
 
-        /* Адаптация основного контента под полноэкранный режим */
         .fullscreen-mode .mode-container {
             flex: 1;
         }
@@ -77,7 +76,7 @@
         .tab-btn.active {
             background: #3b82f6;
             color: white;
-            box-shadow: 0 2px 12px rgba(59,130,246,0.4);
+            box-shadow: 0 2px 8px rgba(59,130,246,0.4);
         }
 
         .mode-container {
@@ -136,9 +135,14 @@
             gap: 16px;
             flex-wrap: wrap;
             margin-top: 6px;
+            align-items: baseline;
         }
         .sensor-data span {
             color: #7dd3fc;
+            white-space: nowrap;
+        }
+        .sensor-data br {
+            display: none;
         }
 
         .status {
@@ -169,7 +173,7 @@
             background: #2563eb;
         }
 
-        /* Кнопка полноэкранного режима — остаётся всегда видимой */
+        /* Кнопка полноэкранного режима */
         .fullscreen-btn {
             position: fixed;
             bottom: 20px;
@@ -215,13 +219,13 @@
             font-weight: bold;
             padding: 2rem;
             transition: opacity 0.3s;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
         }
         .orientation-warning.hidden {
             display: none;
         }
         .warning-icon {
-            font-size: 5rem;
+            font-size: 4rem;
             margin-bottom: 1rem;
             filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
         }
@@ -240,8 +244,8 @@
 <body>
 <div class="app-container" id="appContainer">
     <div class="tabs" id="tabsBar">
-        <button class="tab-btn active" data-mode="2d">2D • Полный экран</button>
-        <button class="tab-btn" data-mode="3d">3D • Куб (все рёбра)</button>
+        <button class="tab-btn active" data-mode="2d">2D</button>
+        <button class="tab-btn" data-mode="3d">3D</button>
     </div>
 
     <div id="mode2d" class="mode-container active-mode">
@@ -254,27 +258,29 @@
 
     <div class="info-panel" id="infoPanel">
         <details>
-            <summary>📊 Датчики движения</summary>
+            <summary>Технические данные датчиков</summary>
             <div class="sensor-data">
-                Наклон β / γ: <span id="betaVal">0.0</span>° / <span id="gammaVal">0.0</span>°<br>
-                Акселерометр X Y Z: <span id="accXval">0.00</span> / <span id="accYval">0.00</span> / <span id="accZval">0.00</span>
+                <span>Наклон β: <span id="betaVal">0.0</span>°</span>
+                <span>γ: <span id="gammaVal">0.0</span>°</span>
+                <span>Акселерометр X: <span id="accXval">0.00</span></span>
+                <span>Y: <span id="accYval">0.00</span></span>
+                <span>Z: <span id="accZval">0.00</span></span>
             </div>
         </details>
         <div class="status" id="statusMsg">
-            ⚡ Нажмите кнопку ниже для доступа к датчикам
+            Нажмите кнопку ниже для доступа к датчикам
         </div>
-        <button id="requestSensorBtn" class="sensor-activate-btn">🎮 Активировать гироскоп / акселерометр</button>
+        <button id="requestSensorBtn" class="sensor-activate-btn">Активировать датчики</button>
     </div>
 </div>
 
 <div id="fullscreenBtn" class="fullscreen-btn" title="Полноэкранный режим">⛶</div>
 
-<!-- Предупреждение: требуем вертикальную ориентацию (портрет) -->
 <div id="orientationWarning" class="orientation-warning hidden">
-    <div class="warning-icon">🔄</div>
+    <div class="warning-icon">↻</div>
     <div class="warning-text">
-        📱 Поверните устройство <strong>вертикально</strong> (портретная ориентация)<br><br>
-        и <strong>отключите автоповорот экрана</strong><br> для корректной работы датчиков.
+        Поверните устройство вертикально (портретная ориентация)<br><br>
+        и отключите автоповорот экрана для корректной работы датчиков.
     </div>
 </div>
 
@@ -336,7 +342,7 @@
                     orientationGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
                 } else {
-                    statusDiv.innerHTML = "❌ Отказано в доступе к ориентации";
+                    statusDiv.innerHTML = "Отказано в доступе к ориентации";
                     return;
                 }
             } catch(e) { console.warn(e); }
@@ -356,7 +362,7 @@
             motionGranted = true;
             window.addEventListener('devicemotion', handleMotion);
         }
-        statusDiv.innerHTML = "✅ Датчики активны! Поворачивайте и трясите телефон.";
+        statusDiv.innerHTML = "Датчики активны. Поворачивайте и трясите телефон.";
         requestBtn.style.opacity = '0.6';
         requestBtn.disabled = true;
         requestBtn.textContent = "Датчики активны";
@@ -371,14 +377,14 @@
                 motionGranted = true;
                 window.addEventListener('deviceorientation', handleOrientation);
                 window.addEventListener('devicemotion', handleMotion);
-                statusDiv.innerHTML = "✅ Датчики активны (авто)";
+                statusDiv.innerHTML = "Датчики активны (авто)";
                 requestBtn.style.display = 'none';
             }
         }, 500);
     }
 
     // --------------------------------------------------------------
-    // 2. 2D МОДУЛЬ (границы экрана)
+    // 2. 2D МОДУЛЬ — высокое разрешение с учётом devicePixelRatio
     // --------------------------------------------------------------
     let canvas2d = document.getElementById('canvas2d');
     let ctx = canvas2d.getContext('2d');
@@ -532,22 +538,27 @@
         if (newWidth === width && newHeight === height) return;
         width = newWidth;
         height = newHeight;
-        canvas2d.width = width;
-        canvas2d.height = height;
+        // Устанавливаем реальные размеры canvas в пикселях с учётом devicePixelRatio для чёткости
+        const dpr = window.devicePixelRatio || 1;
+        canvas2d.width = width * dpr;
+        canvas2d.height = height * dpr;
         canvas2d.style.width = `${width}px`;
         canvas2d.style.height = `${height}px`;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        // Пересоздаём частицы с новыми размерами
         particles2d = init2DParticles(width, height);
     }
     
     // --------------------------------------------------------------
-    // 3. 3D МОДУЛЬ — УВЕЛИЧЕННАЯ ГЛУБИНА И БОЛЬШИЕ ШАРЫ
+    // 3. 3D МОДУЛЬ — глубина увеличена в 2 раза (было 8 -> 16), шары увеличены в 2 раза
     // --------------------------------------------------------------
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
     const SPHERE_COUNT = 14;
-    const BOX_DEPTH = 8.0;          // глубина увеличена
-    // Увеличенные радиусы шаров
-    const SPHERE_RADII = [0.38, 0.34, 0.42, 0.32, 0.36, 0.40, 0.35, 0.38, 0.33, 0.41, 0.32, 0.37, 0.36, 0.39];
+    const BOX_DEPTH = 16.0;          // глубина увеличена в 2 раза
+    // Радиусы шаров увеличены в 2 раза (было ~0.3-0.42, стало ~0.6-0.84)
+    const SPHERE_RADII = [0.76, 0.68, 0.84, 0.64, 0.72, 0.80, 0.70, 0.76, 0.66, 0.82, 0.64, 0.74, 0.72, 0.78];
     const GRAVITY_BASE_3D = 14.0;
     const ACCEL_SCALE_3D = 5.2;
     const ACCEL_BOOST_3D = 1.25;
@@ -805,7 +816,7 @@
                 }
             }
         }
-        checkOrientation(); // проверка вертикальной ориентации
+        checkOrientation();
     }
     
     window.addEventListener('resize', handleGlobalResize);
@@ -844,7 +855,7 @@
     init2DFullscreen();
     
     // --------------------------------------------------------------
-    // 5. ПОЛНОЭКРАННЫЙ РЕЖИМ СО СКРЫТИЕМ ИНТЕРФЕЙСА
+    // 5. ПОЛНОЭКРАННЫЙ РЕЖИМ
     // --------------------------------------------------------------
     const appContainer = document.getElementById('appContainer');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -875,12 +886,11 @@
     });
     
     // --------------------------------------------------------------
-    // 6. ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ ЭКРАНА (ТРЕБУЕМ ВЕРТИКАЛЬНО)
+    // 6. ПРЕДУПРЕЖДЕНИЕ О ВЕРТИКАЛЬНОЙ ОРИЕНТАЦИИ
     // --------------------------------------------------------------
     const warningDiv = document.getElementById('orientationWarning');
     
     function checkOrientation() {
-        // Если ширина больше высоты — ландшафт, просим повернуть вертикально
         if (window.innerWidth > window.innerHeight) {
             warningDiv.classList.remove('hidden');
         } else {
