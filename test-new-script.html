@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Музыкальный визуализатор | Эмоции в такте</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            background: rgba(10, 10, 20, 0.8);
+            backdrop-filter: blur(12px);
+            border-radius: 60px;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            pointer-events: auto;
+        }
+        
+        .file-btn {
+            background: linear-gradient(135deg, #ff3366, #ff6b3d);
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .file-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(255, 51, 102, 0.4);
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        .song-info, .bpm-indicator {
+            background: rgba(0,0,0,0.6);
+            padding: 6px 16px;
+            border-radius: 40px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .bpm-indicator {
+            color: #ffaa44;
+            font-family: monospace;
+        }
+        
+        .instruction {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            padding: 6px 12px;
+            border-radius: 20px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        @media (max-width: 700px) {
+            .controls { padding: 8px 16px; }
+            .file-btn { padding: 6px 16px; font-size: 12px; }
+            .song-info, .bpm-indicator { font-size: 10px; padding: 4px 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div>
+            <input type="file" id="file-input" accept="audio/*">
+            <button class="file-btn" id="load-btn">🎵 ЗАГРУЗИТЬ ТРЕК</button>
+        </div>
+        <div class="song-info" id="song-name">Нет трека</div>
+        <div class="bpm-indicator" id="bpm-display">⚡ BPM: --</div>
+    </div>
+    <div class="instruction">🎧 Эмоции в такте | 3D абстракция | Бит резко выделяется</div>
+
+    <!-- Подключаем Three.js и дополнения через CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+    <!-- Postprocessing отдельно, чтобы избежать конфликтов -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer, RenderPass, EffectPass, BloomEffect, ChromaticAberrationEffect } from 'https://unpkg.com/postprocessing@6.35.7/build/index.module.js';
+        
+        // --- Инициализация сцены ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050510);
+        scene.fog = new THREE.FogExp2(0x050510, 0.008);
+        
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.2, 8);
+        camera.lookAt(0, 0, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        document.body.appendChild(renderer.domElement);
+        
+        // --- Пост-эффекты ---
+        const renderScene = new RenderPass(scene, camera);
+        const bloomEffect = new BloomEffect({ intensity: 1.2, radius: 0.4, threshold: 0.2 });
+        const chromaticAberration = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.003, 0.001) });
+        const effectPass = new EffectPass(camera, bloomEffect, chromaticAberration);
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(effectPass);
+        
+        // --- Орбит контрол с возможностью вращения камеры ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.07;
+        controls.rotateSpeed = 0.8;
+        controls.zoomSpeed = 0.8;
+        controls.enableZoom = true;
+        controls.target.set(0, 0.5, 0);
+        
+        // --- Освещение ---
+        const ambientLight = new THREE.AmbientLight(0x222222);
+        scene.add(ambientLight);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+        mainLight.position.set(2, 3, 4);
+        scene.add(mainLight);
+        const backLight = new THREE.PointLight(0x4466ff, 0.5);
+        backLight.position.set(-2, 1, -3);
+        scene.add(backLight);
+        const fillLight = new THREE.PointLight(0xffaa66, 0.4);
+        fillLight.position.set(1, 2, 2);
+        scene.add(fillLight);
+        
+        // --- 1. Боковые палочки (левые и правые) ---
+        const barCount = 48;
+        const leftBars = [];
+        const rightBars = [];
+        const barGroupLeft = new THREE.Group();
+        const barGroupRight = new THREE.Group();
+        scene.add(barGroupLeft);
+        scene.add(barGroupRight);
+        
+        const barGeo = new THREE.BoxGeometry(0.12, 0.2, 0.12);
+        const baseColors = [0xff3366, 0xff6633, 0xff9933, 0xffcc33, 0x33ff66, 0x33ffcc, 0x33aaff, 0xaa44ff];
+        
+        for (let i = 0; i < barCount; i++) {
+            const material = new THREE.MeshStandardMaterial({ color: baseColors[i % baseColors.length], emissive: 0x220000, emissiveIntensity: 0.4 });
+            const bar = new THREE.Mesh(barGeo, material);
+            const t = i / barCount;
+            const xPos = -3.2 - t * 1.2;
+            const zPos = Math.sin(t * Math.PI * 2) * 1.2;
+            bar.position.set(xPos, -0.5, zPos);
+            bar.castShadow = true;
+            barGroupLeft.add(bar);
+            leftBars.push(bar);
+        }
+        
+        for (let i = 0; i < barCount; i++) {
+            const material = new THREE.MeshStandardMaterial({ color: baseColors[i % baseColors.length], emissive: 0x220000, emissiveIntensity: 0.4 });
+            const bar = new THREE.Mesh(barGeo, material);
+            const t = i / barCount;
+            const xPos = 3.2 + t * 1.2;
+            const zPos = Math.sin(t * Math.PI * 2 + Math.PI) * 1.2;
+            bar.position.set(xPos, -0.5, zPos);
+            bar.castShadow = true;
+            barGroupRight.add(bar);
+            rightBars.push(bar);
+        }
+        
+        // --- 2. Центральная абстракция ---
+        const icoGeometry = new THREE.IcosahedronGeometry(1.0, 0);
+        const coreMaterial = new THREE.MeshStandardMaterial({
+            color: 0xaa44ff,
+            emissive: 0x331166,
+            emissiveIntensity: 0.6,
+            roughness: 0.25,
+            metalness: 0.7
+        });
+        const coreMesh = new THREE.Mesh(icoGeometry, coreMaterial);
+        coreMesh.castShadow = true;
+        scene.add(coreMesh);
+        
+        const torusGeo = new THREE.TorusGeometry(1.45, 0.05, 64, 200);
+        const torusMat = new THREE.MeshStandardMaterial({ color: 0xff66cc, emissive: 0xff2299, emissiveIntensity: 0.5 });
+        const torusRing = new THREE.Mesh(torusGeo, torusMat);
+        scene.add(torusRing);
+        
+        const particleCount = 1800;
+        const particleGeometry = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount; i++) {
+            const radius = 2.2 + Math.random() * 2.3;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            particlePositions[i*3] = radius * Math.sin(phi) * Math.cos(theta);
+            particlePositions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta) * 0.8;
+            particlePositions[i*3+2] = radius * Math.cos(phi);
+        }
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        const particleMaterial = new THREE.PointsMaterial({ color: 0x88aaff, size: 0.04, transparent: true, blending: THREE.AdditiveBlending });
+        const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particleSystem);
+        
+        const glowGeometry = new THREE.SphereGeometry(1.35, 32, 32);
+        const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x3366ff, transparent: true, opacity: 0.08, side: THREE.BackSide });
+        const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
+        scene.add(glowSphere);
+        
+        // --- Аудио ---
+        let audioContext = null;
+        let analyser = null;
+        let sourceNode = null;
+        let audioElement = null;
+        let isPlaying = false;
+        let dataArray = null;
+        
+        // Beat detection
+        let bassHistory = [];
+        let lastBeatTime = 0;
+        let beatIntervals = [];
+        
+        function updateBpmDisplay() {
+            if (beatIntervals.length < 3) {
+                document.getElementById('bpm-display').innerHTML = '⚡ BPM: --';
+                return;
+            }
+            const avgInterval = beatIntervals.slice(-8).reduce((a,b)=>a+b,0)/Math.min(beatIntervals.length,8);
+            const bpm = Math.round(60000 / avgInterval);
+            if (bpm > 70 && bpm < 180) document.getElementById('bpm-display').innerHTML = `⚡ BPM: ${bpm}`;
+            else document.getElementById('bpm-display').innerHTML = `⚡ BPM: ~${Math.min(160, Math.max(80, bpm))}`;
+        }
+        
+        async function setupAudio(file) {
+            if (audioContext) {
+                await audioContext.close();
+                if (audioElement) {
+                    audioElement.pause();
+                    audioElement.src = '';
+                }
+            }
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.3;
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            
+            audioElement = new Audio();
+            const url = URL.createObjectURL(file);
+            audioElement.src = url;
+            audioElement.crossOrigin = "anonymous";
+            audioElement.loop = false;
+            
+            sourceNode = audioContext.createMediaElementSource(audioElement);
+            sourceNode.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            await audioContext.resume();
+            audioElement.play().catch(e => console.warn("Автовоспроизведение заблокировано, но можно кликнуть по экрану"));
+            isPlaying = true;
+            
+            document.getElementById('song-name').innerText = file.name.length > 35 ? file.name.slice(0,32)+'...' : file.name;
+            
+            bassHistory = [];
+            beatIntervals = [];
+            lastBeatTime = performance.now();
+        }
+        
+        function getAudioFeatures() {
+            if (!analyser || !dataArray) return { bassIntensity: 0, trebleIntensity: 0, fullEnergy: 0 };
+            analyser.getByteFrequencyData(dataArray);
+            let bassSum = 0, trebleSum = 0, totalSum = 0;
+            const bassCount = 8;
+            const trebleStart = Math.floor(dataArray.length * 0.7);
+            for (let i = 0; i < dataArray.length; i++) {
+                const val = dataArray[i];
+                totalSum += val;
+                if (i < bassCount) bassSum += val;
+                if (i >= trebleStart) trebleSum += val;
+            }
+            const bassIntensity = Math.min(1, bassSum / (bassCount * 200));
+            const trebleIntensity = Math.min(1, trebleSum / ((dataArray.length - trebleStart) * 180));
+            const fullEnergy = totalSum / (dataArray.length * 180);
+            return { bassIntensity, trebleIntensity, fullEnergy };
+        }
+        
+        function detectBeat(bassIntensity) {
+            const now = performance.now();
+            bassHistory.push(bassIntensity);
+            if (bassHistory.length > 25) bassHistory.shift();
+            if (bassHistory.length < 10) return false;
+            const avg = bassHistory.reduce((a,b)=>a+b,0)/bassHistory.length;
+            const threshold = avg * 1.45;
+            const isBeat = (bassIntensity > threshold && bassIntensity > 0.35 && (now - lastBeatTime) > 280);
+            if (isBeat) {
+                lastBeatTime = now;
+                if (beatIntervals.length > 8) beatIntervals.shift();
+                if (beatIntervals.length > 0) beatIntervals.push(now - (beatIntervals[beatIntervals.length-1] || now));
+                else beatIntervals.push(400);
+                updateBpmDisplay();
+            }
+            return isBeat;
+        }
+        
+        // --- Анимация и визуальный отклик ---
+        let cameraShakeX = 0, cameraShakeY = 0;
+        let baseCameraPos = new THREE.Vector3(0, 1.2, 8);
+        let bloomIntensityTarget = 1.2;
+        
+        function animateVisuals() {
+            if (!isPlaying || !analyser || !dataArray) {
+                if (coreMesh.scale.x > 1.01) coreMesh.scale.setScalar(1.0);
+                if (torusRing.scale.x > 1.01) torusRing.scale.setScalar(1.0);
+                animateIdle();
+                return;
+            }
+            
+            const { bassIntensity, trebleIntensity, fullEnergy } = getAudioFeatures();
+            const isBeat = detectBeat(bassIntensity);
+            
+            // Боковые палочки
+            const barIntensity = Math.pow(bassIntensity, 1.2) * 1.8 + (isBeat ? 0.7 : 0);
+            const barHeightScale = Math.min(1.8, 0.5 + barIntensity * 1.4);
+            leftBars.forEach((bar, idx) => {
+                const factor = Math.sin(idx * 0.25 + Date.now() * 0.01) * 0.3 + 0.7;
+                bar.scale.y = 0.3 + barHeightScale * (0.6 + factor * 0.5);
+                if (bar.material) {
+                    const hue = (bassIntensity * 0.6 + trebleIntensity * 0.4) * 0.4 + 0.55;
+                    bar.material.color.setHSL(hue, 1.0, 0.55);
+                    bar.material.emissiveIntensity = 0.3 + bassIntensity * 1.2;
+                }
+            });
+            rightBars.forEach((bar, idx) => {
+                const factor = Math.sin(idx * 0.25 + 2.0 + Date.now() * 0.01) * 0.3 + 0.7;
+                bar.scale.y = 0.3 + barHeightScale * (0.6 + factor * 0.5);
+                if (bar.material) {
+                    const hue = (bassIntensity * 0.5 + trebleIntensity * 0.5) * 0.45 + 0.6;
+                    bar.material.color.setHSL(hue, 1.0, 0.55);
+                    bar.material.emissiveIntensity = 0.3 + bassIntensity * 1.2;
+                }
+            });
+            
+            // Центральная абстракция
+            const coreScale = 1.0 + bassIntensity * 0.55 + (isBeat ? 0.25 : 0);
+            coreMesh.scale.setScalar(coreScale);
+            coreMesh.material.emissiveIntensity = 0.4 + bassIntensity * 1.4;
+            torusRing.rotation.x += 0.008;
+            torusRing.rotation.z += 0.005;
+            torusRing.rotation.y += 0.01;
+            const torusScale = 1.0 + bassIntensity * 0.35;
+            torusRing.scale.setScalar(torusScale);
+            torusRing.material.emissiveIntensity = 0.5 + bassIntensity * 1.0;
+            coreMesh.rotation.y += 0.005;
+            coreMesh.rotation.x = Math.sin(Date.now() * 0.002) * 0.2;
+            coreMesh.rotation.z = Math.cos(Date.now() * 0.0023) * 0.15;
+            
+            particleMaterial.color.setHSL(0.55 + trebleIntensity * 0.25, 1.0, 0.6);
+            particleSystem.rotation.y += 0.002;
+            particleSystem.rotation.x = Math.sin(Date.now() * 0.0005) * 0.1;
+            
+            // Цвет фона и освещения
+            const themeHue = (bassIntensity * 0.7 + trebleIntensity * 0.3) * 0.8;
+            const bgColor = new THREE.Color().setHSL(0.6 + themeHue * 0.2, 0.9, 0.05);
+            scene.background.lerp(bgColor, 0.08);
+            if (scene.fog) scene.fog.color.lerp(bgColor, 0.05);
+            mainLight.intensity = 0.8 + bassIntensity * 1.2;
+            backLight.intensity = 0.4 + trebleIntensity * 0.9;
+            fillLight.intensity = 0.5 + fullEnergy * 0.8;
+            
+            // Тряска камеры
+            let shakeIntensity = bassIntensity * 0.08 + (isBeat ? 0.12 : 0);
+            if (shakeIntensity > 0.2) shakeIntensity = 0.2;
+            cameraShakeX = (Math.random() - 0.5) * shakeIntensity;
+            cameraShakeY = (Math.random() - 0.5) * shakeIntensity;
+            const targetCam = baseCameraPos.clone();
+            targetCam.x += cameraShakeX * 0.3;
+            targetCam.y += cameraShakeY * 0.2;
+            camera.position.lerp(targetCam, 0.2);
+            controls.target.set(0, 0.5 + bassIntensity * 0.2, 0);
+            controls.update();
+            
+            // Пост-эффекты
+            bloomIntensityTarget = 0.9 + fullEnergy * 1.5 + (isBeat ? 0.6 : 0);
+            bloomEffect.intensity = Math.min(2.4, bloomEffect.intensity * 0.95 + bloomIntensityTarget * 0.05);
+            const chromaOffset = 0.002 + (isBeat ? 0.004 : 0) + bassIntensity * 0.003;
+            chromaticAberration.offset.set(chromaOffset * 0.8, chromaOffset * 0.4);
+            
+            // Вспышка сферы и частиц при бите
+            if (isBeat && glowSphere.material) {
+                glowSphere.material.opacity = 0.25;
+                setTimeout(() => { if(glowSphere.material) glowSphere.material.opacity = 0.08; }, 150);
+                particleMaterial.size = 0.07;
+                setTimeout(() => { particleMaterial.size = 0.04; }, 200);
+            } else if (particleMaterial.size > 0.045) {
+                particleMaterial.size = 0.045;
+            }
+        }
+        
+        function animateIdle() {
+            coreMesh.rotation.y += 0.002;
+            torusRing.rotation.y += 0.003;
+            torusRing.rotation.x += 0.002;
+            particleSystem.rotation.y += 0.001;
+            coreMesh.material.emissiveIntensity = 0.25;
+            torusRing.material.emissiveIntensity = 0.2;
+        }
+        
+        function renderLoop() {
+            animateVisuals();
+            composer.render();
+            requestAnimationFrame(renderLoop);
+        }
+        renderLoop();
+        
+        // --- Загрузка трека ---
+        const fileInput = document.getElementById('file-input');
+        const loadBtn = document.getElementById('load-btn');
+        
+        loadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            await setupAudio(file);
+        });
+        
+        window.addEventListener('click', async () => {
+            if (audioContext && audioContext.state === 'suspended') {
+                await audioContext.resume();
+                if (audioElement && audioElement.src) audioElement.play();
+            }
+        });
+        
+        setInterval(() => {
+            baseCameraPos.set(0, 1.2 + Math.sin(Date.now() * 0.0005) * 0.05, 8);
+        }, 100);
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        console.log('Визуализатор готов! Загрузите трек и наслаждайтесь.');
+    </script>
+</body>
+</html>
