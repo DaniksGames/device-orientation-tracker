@@ -15,38 +15,55 @@
         body {
             background: #0a0f1e;
             width: 100vw;
-            height: 100vh;
-            overflow: hidden;       /* прокрутку обеспечит внутренний контейнер */
+            min-height: 100vh;
             font-family: system-ui, 'Segoe UI', sans-serif;
+            overflow-x: hidden;
+            overflow-y: auto;       /* body сам не прокручивается, прокрутку обеспечит app-container */
         }
 
         .app-container {
             width: 100%;
-            height: 100vh;          /* фиксированная высота для корректной работы flex */
+            min-height: 100vh;      /* может быть больше экрана при необходимости */
             background: #0f172a;
             display: flex;
             flex-direction: column;
-            overflow-y: auto;       /* вертикальная прокрутка при необходимости */
-            overflow-x: hidden;
             position: relative;
+            overflow-y: auto;       /* вертикальная прокрутка */
+            overflow-x: hidden;
         }
 
-        /* Полноэкранный режим — перекрываем всё */
+        /* Обычный полноэкранный режим (через API) */
         .fullscreen-mode {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
             overflow: hidden !important;
+            z-index: 9999;
+        }
+
+        /* Имитация полноэкранного режима для iOS */
+        .fake-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            overflow: hidden !important;
+            z-index: 9999;
+            background: #0f172a;
         }
 
         .fullscreen-mode .tabs,
-        .fullscreen-mode .info-panel {
+        .fullscreen-mode .info-panel,
+        .fake-fullscreen .tabs,
+        .fake-fullscreen .info-panel {
             display: none;
         }
 
-        .fullscreen-mode .mode-container.active-mode {
+        .fullscreen-mode .mode-container.active-mode,
+        .fake-fullscreen .mode-container.active-mode {
             flex: 1;
             height: 100%;
         }
@@ -83,7 +100,7 @@
 
         .mode-container {
             display: none;
-            flex: 1;                /* занимает всё доступное место между панелями */
+            flex: 1;
             width: 100%;
             position: relative;
             min-height: 0;          /* важно для правильного расчёта flex */
@@ -92,6 +109,7 @@
         .mode-container.active-mode {
             display: flex;
             flex-direction: column;
+            height: auto;           /* позволит растягиваться */
         }
 
         #canvas2d {
@@ -352,6 +370,7 @@
 
     let mode2dActive = true;
     let isFullscreen = false;
+    let isFakeFullscreen = false;   // для iOS
 
     // Элементы UI
     const betaSpan = document.getElementById('betaVal');
@@ -366,6 +385,11 @@
     const ballsCountDisplay = document.getElementById('ballsCountDisplay');
     const decrementBtn = document.getElementById('decrementBalls');
     const incrementBtn = document.getElementById('incrementBalls');
+    const appContainer = document.getElementById('appContainer');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+    // ------------------- ОПРЕДЕЛЕНИЕ iOS -------------------
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     // ------------------- ДАТЧИКИ -------------------
     function handleOrientation(e) {
@@ -665,7 +689,6 @@
             return;
         }
         const aspect = rect.width / rect.height;
-        // Фиксированная ширина мира, высота подстраивается под aspect
         const worldWidth = 7.0;
         const worldHeight = worldWidth / aspect;
         currentBoxWidth = worldWidth;
@@ -878,11 +901,12 @@
         }
         
         const savedFull = localStorage.getItem('isFullscreen');
-        if (savedFull === 'true' && !document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(e=>console.warn);
-            isFullscreen = true;
-            appContainer.classList.add('fullscreen-mode');
-            fullscreenBtn.textContent = '✕';
+        if (savedFull === 'true') {
+            if (isIOS) {
+                enterFakeFullscreen();
+            } else {
+                document.documentElement.requestFullscreen().catch(e=>console.warn);
+            }
         }
         
         if (mode2dActive) {
@@ -935,36 +959,66 @@
         if (anim2dId) { cancelAnimationFrame(anim2dId); anim2dId = null; }
     }
     
-    // ------------------- ПОЛНОЭКРАННЫЙ РЕЖИМ -------------------
-    const appContainer = document.getElementById('appContainer');
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    // ------------------- ПОЛНОЭКРАННЫЙ РЕЖИМ С ФОЛЛБЭКОМ ДЛЯ iOS -------------------
+    function enterFakeFullscreen() {
+        if (isFakeFullscreen) return;
+        isFakeFullscreen = true;
+        isFullscreen = true;
+        appContainer.classList.add('fake-fullscreen');
+        fullscreenBtn.textContent = '✕';
+        document.body.style.overflow = 'hidden';
+        saveToLocalStorage();
+        setTimeout(() => handleGlobalResize(), 50);
+    }
+    
+    function exitFakeFullscreen() {
+        if (!isFakeFullscreen) return;
+        isFakeFullscreen = false;
+        isFullscreen = false;
+        appContainer.classList.remove('fake-fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        document.body.style.overflow = '';
+        saveToLocalStorage();
+        setTimeout(() => handleGlobalResize(), 50);
+    }
+    
     function toggleFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().then(() => {
-                appContainer.classList.add('fullscreen-mode');
-                isFullscreen = true;
-                saveToLocalStorage();
-                setTimeout(() => handleGlobalResize(), 50);
-            }).catch(e => console.warn);
+        if (isFullscreen) {
+            // выход
+            if (isIOS && isFakeFullscreen) {
+                exitFakeFullscreen();
+            } else if (document.fullscreenElement) {
+                document.exitFullscreen().catch(e => console.warn);
+            } else {
+                // если вдруг флаг сбился, но мы в режиме - принудительно выходим
+                if (isIOS) exitFakeFullscreen();
+                else document.exitFullscreen();
+            }
         } else {
-            document.exitFullscreen().then(() => {
-                appContainer.classList.remove('fullscreen-mode');
-                isFullscreen = false;
-                saveToLocalStorage();
-                setTimeout(() => handleGlobalResize(), 50);
-            }).catch(e => console.warn);
+            // вход
+            if (isIOS) {
+                enterFakeFullscreen();
+            } else {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.warn('Fullscreen API failed, fallback to fake', err);
+                    enterFakeFullscreen(); // фоллбэк
+                });
+            }
         }
     }
+    
     fullscreenBtn.addEventListener('click', toggleFullscreen);
+    
     document.addEventListener('fullscreenchange', () => {
         if (document.fullscreenElement) {
+            isFullscreen = true;
+            isFakeFullscreen = false;
             appContainer.classList.add('fullscreen-mode');
             fullscreenBtn.textContent = '✕';
-            isFullscreen = true;
         } else {
+            isFullscreen = false;
             appContainer.classList.remove('fullscreen-mode');
             fullscreenBtn.textContent = '⛶';
-            isFullscreen = false;
         }
         saveToLocalStorage();
         setTimeout(() => handleGlobalResize(), 50);
