@@ -15,75 +15,47 @@
         body {
             background: #0a0f1e;
             width: 100vw;
-            height: 100vh;           /* фиксируем высоту body */
+            height: 100vh;
+            overflow: hidden;       /* прокрутку обеспечит внутренний контейнер */
             font-family: system-ui, 'Segoe UI', sans-serif;
-            overflow: hidden;        /* body не прокручивается, прокрутку обеспечит app-container */
         }
 
         .app-container {
             width: 100%;
-            height: 100vh;           /* фиксированная высота экрана */
+            height: 100vh;          /* фиксированная высота для корректной работы flex */
             background: #0f172a;
             display: flex;
             flex-direction: column;
-            overflow-y: auto;        /* прокрутка, если контент вылезает */
+            overflow-y: auto;       /* вертикальная прокрутка при необходимости */
             overflow-x: hidden;
             position: relative;
         }
 
-        /* В полноэкранном режиме отключаем прокрутку, скрываем панели */
+        /* Полноэкранный режим — перекрываем всё */
         .fullscreen-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden !important;
-            height: 100vh;
         }
 
         .fullscreen-mode .tabs,
         .fullscreen-mode .info-panel {
-            display: none;           /* полностью убираем панели из потока */
-        }
-
-        /* Контейнер с режимом занимает всё свободное место */
-        .mode-container {
             display: none;
-            flex: 1;
-            width: 100%;
-            position: relative;
-            min-height: 0;
         }
 
-        .mode-container.active-mode {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* В полноэкранном режиме активный режим растягивается на весь экран */
         .fullscreen-mode .mode-container.active-mode {
             flex: 1;
             height: 100%;
-        }
-
-        #canvas2d {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background: #111827;
-            border-radius: 0;
-            box-shadow: none;
-        }
-
-        #threeContainer {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            background: #0f172a;
-            overflow: hidden;
         }
 
         .tabs {
             display: flex;
             gap: 12px;
             justify-content: center;
-            padding: 12px 16px 8px 16px;
+            padding: 12px 16px 8px;
             flex-shrink: 0;
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(8px);
@@ -101,7 +73,6 @@
             font-size: 1rem;
             cursor: pointer;
             transition: 0.2s;
-            font-family: inherit;
         }
 
         .tab-btn.active {
@@ -110,9 +81,36 @@
             box-shadow: 0 2px 8px rgba(59,130,246,0.4);
         }
 
+        .mode-container {
+            display: none;
+            flex: 1;                /* занимает всё доступное место между панелями */
+            width: 100%;
+            position: relative;
+            min-height: 0;          /* важно для правильного расчёта flex */
+        }
+
+        .mode-container.active-mode {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #canvas2d {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #111827;
+        }
+
+        #threeContainer {
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+            overflow: hidden;
+        }
+
         .info-panel {
             flex-shrink: 0;
-            padding: 8px 16px 12px 16px;
+            padding: 8px 16px 16px;
             background: rgba(15, 23, 42, 0.9);
             backdrop-filter: blur(8px);
             border-top: 1px solid #2d3a5e;
@@ -147,8 +145,64 @@
             white-space: nowrap;
         }
 
-        .sensor-data br {
-            display: none;
+        .control-group {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            background: #1e2a3a;
+            border-radius: 2rem;
+            padding: 8px 12px;
+        }
+
+        .control-group label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #cbd5e6;
+        }
+
+        .counter {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #0f172a;
+            padding: 4px 12px;
+            border-radius: 2rem;
+        }
+
+        .counter button {
+            background: #3b82f6;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+
+        .counter button:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+
+        .counter span {
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+            color: #facc15;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            min-width: 140px;
+            height: 4px;
+            border-radius: 4px;
+            background: #334155;
         }
 
         .status {
@@ -163,7 +217,6 @@
 
         .sensor-activate-btn {
             margin-top: 6px;
-            margin-bottom: 4px;
             width: 100%;
             background: #3b82f6;
             border: none;
@@ -173,11 +226,6 @@
             font-weight: bold;
             font-size: 0.8rem;
             cursor: pointer;
-            transition: 0.2s;
-        }
-
-        .sensor-activate-btn:hover {
-            background: #2563eb;
         }
 
         .fullscreen-btn {
@@ -199,12 +247,6 @@
             z-index: 2000;
             transition: 0.2s;
             box-shadow: 0 2px 12px rgba(0,0,0,0.4);
-            font-family: monospace;
-        }
-
-        .fullscreen-btn:hover {
-            background: rgba(59,130,246,0.9);
-            transform: scale(1.05);
         }
 
         .orientation-warning {
@@ -224,30 +266,11 @@
             color: white;
             font-weight: bold;
             padding: 2rem;
-            transition: opacity 0.3s;
             font-size: 1.3rem;
         }
 
         .orientation-warning.hidden {
             display: none;
-        }
-
-        .warning-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
-        }
-
-        .warning-text {
-            max-width: 300px;
-            background: rgba(0,0,0,0.6);
-            padding: 1.2rem;
-            border-radius: 2rem;
-            line-height: 1.4;
-        }
-
-        .warning-text strong {
-            color: #facc15;
         }
     </style>
 </head>
@@ -276,7 +299,22 @@
                 <span>Y: <span id="accYval">0.00</span></span>
                 <span>Z: <span id="accZval">0.00</span></span>
             </div>
+            <div class="control-group">
+                <label>Чувствительность: </label>
+                <input type="range" id="sensitivitySlider" min="0.2" max="2.5" step="0.01" value="1.0">
+                <span id="sensitivityValue">1.00</span>
+            </div>
         </details>
+        
+        <div class="control-group">
+            <label>Количество шаров: </label>
+            <div class="counter">
+                <button id="decrementBalls" title="Уменьшить">−</button>
+                <span id="ballsCountDisplay">14</span>
+                <button id="incrementBalls" title="Увеличить">+</button>
+            </div>
+        </div>
+
         <div class="status" id="statusMsg">
             Нажмите кнопку ниже для доступа к датчикам
         </div>
@@ -285,13 +323,9 @@
 </div>
 
 <div id="fullscreenBtn" class="fullscreen-btn" title="Полноэкранный режим">⛶</div>
-
 <div id="orientationWarning" class="orientation-warning hidden">
     <div class="warning-icon">↻</div>
-    <div class="warning-text">
-        Поверните устройство вертикально (портретная ориентация)<br><br>
-        и отключите автоповорот экрана для корректной работы датчиков.
-    </div>
+    <div>Поверните устройство вертикально и отключите автоповорот</div>
 </div>
 
 <script type="importmap">
@@ -305,14 +339,21 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --------------------------------------------------------------
-    // 1. ДАТЧИКИ
-    // --------------------------------------------------------------
+    // ------------------- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ -------------------
     let beta = 0, gamma = 0;
+    let rawAccX = 0, rawAccY = 0, rawAccZ = 0;
     let filteredAccX = 0, filteredAccY = 0, filteredAccZ = 0;
     const ACC_FILTER = 0.3;
+    let sensitivity = 1.0;
     let orientationGranted = false, motionGranted = false;
 
+    let currentBallsCount = 14;
+    const MIN_BALLS = 0, MAX_BALLS = 30;
+
+    let mode2dActive = true;
+    let isFullscreen = false;
+
+    // Элементы UI
     const betaSpan = document.getElementById('betaVal');
     const gammaSpan = document.getElementById('gammaVal');
     const accXspan = document.getElementById('accXval');
@@ -320,7 +361,13 @@
     const accZspan = document.getElementById('accZval');
     const statusDiv = document.getElementById('statusMsg');
     const requestBtn = document.getElementById('requestSensorBtn');
+    const sensitivitySlider = document.getElementById('sensitivitySlider');
+    const sensitivityValue = document.getElementById('sensitivityValue');
+    const ballsCountDisplay = document.getElementById('ballsCountDisplay');
+    const decrementBtn = document.getElementById('decrementBalls');
+    const incrementBtn = document.getElementById('incrementBalls');
 
+    // ------------------- ДАТЧИКИ -------------------
     function handleOrientation(e) {
         if (!orientationGranted) return;
         if (e.beta !== null) beta = e.beta;
@@ -332,12 +379,15 @@
     function handleMotion(e) {
         if (!motionGranted) return;
         if (e.acceleration) {
-            let rawX = e.acceleration.x || 0;
-            let rawY = e.acceleration.y || 0;
-            let rawZ = e.acceleration.z || 0;
-            filteredAccX = filteredAccX * (1 - ACC_FILTER) + rawX * ACC_FILTER;
-            filteredAccY = filteredAccY * (1 - ACC_FILTER) + rawY * ACC_FILTER;
-            filteredAccZ = filteredAccZ * (1 - ACC_FILTER) + rawZ * ACC_FILTER;
+            rawAccX = e.acceleration.x || 0;
+            rawAccY = e.acceleration.y || 0;
+            rawAccZ = e.acceleration.z || 0;
+            let scaledX = rawAccX * sensitivity;
+            let scaledY = rawAccY * sensitivity;
+            let scaledZ = rawAccZ * sensitivity;
+            filteredAccX = filteredAccX * (1 - ACC_FILTER) + scaledX * ACC_FILTER;
+            filteredAccY = filteredAccY * (1 - ACC_FILTER) + scaledY * ACC_FILTER;
+            filteredAccZ = filteredAccZ * (1 - ACC_FILTER) + scaledZ * ACC_FILTER;
             accXspan.textContent = filteredAccX.toFixed(2);
             accYspan.textContent = filteredAccY.toFixed(2);
             accZspan.textContent = filteredAccZ.toFixed(2);
@@ -372,14 +422,12 @@
             motionGranted = true;
             window.addEventListener('devicemotion', handleMotion);
         }
-        statusDiv.innerHTML = "Датчики активны. Поворачивайте и трясите телефон.";
-        requestBtn.style.opacity = '0.6';
+        statusDiv.innerHTML = "Датчики активны. Чувствительность регулируется.";
         requestBtn.disabled = true;
         requestBtn.textContent = "Датчики активны";
     }
 
     requestBtn.addEventListener('click', requestSensors);
-    
     if (!(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')) {
         setTimeout(() => {
             if (!orientationGranted && !motionGranted) {
@@ -393,14 +441,37 @@
         }, 500);
     }
 
-    // --------------------------------------------------------------
-    // 2. 2D МОДУЛЬ
-    // --------------------------------------------------------------
+    sensitivitySlider.addEventListener('input', (e) => {
+        sensitivity = parseFloat(e.target.value);
+        sensitivityValue.textContent = sensitivity.toFixed(2);
+        saveToLocalStorage();
+    });
+
+    // ------------------- УПРАВЛЕНИЕ КОЛИЧЕСТВОМ -------------------
+    function setBallsCount(newCount) {
+        newCount = Math.min(MAX_BALLS, Math.max(MIN_BALLS, newCount));
+        if (newCount === currentBallsCount) return;
+        currentBallsCount = newCount;
+        ballsCountDisplay.textContent = currentBallsCount;
+        decrementBtn.disabled = (currentBallsCount <= MIN_BALLS);
+        incrementBtn.disabled = (currentBallsCount >= MAX_BALLS);
+        
+        if (mode2dActive) {
+            resizeAndReset2D(true);
+        } else {
+            reinit3DWithCount();
+        }
+        saveToLocalStorage();
+    }
+
+    decrementBtn.addEventListener('click', () => setBallsCount(currentBallsCount - 1));
+    incrementBtn.addEventListener('click', () => setBallsCount(currentBallsCount + 1));
+
+    // ------------------- 2D МОДУЛЬ -------------------
     let canvas2d = document.getElementById('canvas2d');
     let ctx = canvas2d.getContext('2d');
     let width = 0, height = 0;
     let particles2d = [];
-    const PARTICLE_COUNT = 14;
     const GRAVITY_BASE = 950;
     const ACCEL_SCALE = 180;
     const ACCEL_BOOST = 1.8;
@@ -409,6 +480,7 @@
     const BOUNCE_DAMP = 0.85;
     const COLLISION_ELASTIC = 0.55;
     const MIN_SPEED = 0.8;
+    const RADII_LIST = [16, 14, 18, 12, 15, 17, 13, 16, 14, 18, 15, 13, 17, 12];
     
     class Particle2D {
         constructor(x, y, r, vx = 0, vy = 0) {
@@ -418,28 +490,23 @@
         }
     }
     
-    function init2DParticles(currentWidth, currentHeight) {
-        if (currentWidth === 0 || currentHeight === 0) return [];
-        let pList = [];
-        let radii = [16, 14, 18, 12, 15, 17, 13, 16, 14, 18, 15, 13, 17, 12];
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            let r = radii[i % radii.length];
-            let overlap = true, tries = 0, x, y;
-            while (overlap && tries < 500) {
-                overlap = false;
-                x = r + Math.random() * (currentWidth - 2 * r);
-                y = r + Math.random() * (currentHeight - 2 * r);
-                for (let p of pList) {
-                    if (Math.hypot(p.x - x, p.y - y) < p.r + r) {
-                        overlap = true;
-                        break;
-                    }
-                }
-                tries++;
+    function init2DParticles(count, w, h, preservePositions = false) {
+        if (w === 0 || h === 0) return [];
+        let newParticles = [];
+        let oldPositions = preservePositions ? particles2d.map(p => ({x: p.x, y: p.y, r: p.r})) : [];
+        for (let i = 0; i < count; i++) {
+            let r = RADII_LIST[i % RADII_LIST.length];
+            let x, y;
+            if (preservePositions && i < oldPositions.length) {
+                x = Math.min(w - r, Math.max(r, oldPositions[i].x));
+                y = Math.min(h - r, Math.max(r, oldPositions[i].y));
+            } else {
+                x = r + Math.random() * (w - 2 * r);
+                y = r + Math.random() * (h - 2 * r);
             }
-            pList.push(new Particle2D(x, y, r, 0, 0));
+            newParticles.push(new Particle2D(x, y, r, 0, 0));
         }
-        return pList;
+        return newParticles;
     }
     
     function handleCollisions2D() {
@@ -515,6 +582,15 @@
             handleCollisions2D();
             handleBoundaries2D();
         }
+        throttleSavePositions2D();
+    }
+    
+    let saveTimeout2D;
+    function throttleSavePositions2D() {
+        if (saveTimeout2D) clearTimeout(saveTimeout2D);
+        saveTimeout2D = setTimeout(() => {
+            if (particles2d.length) saveBallsPositions();
+        }, 500);
     }
     
     function draw2D() {
@@ -539,13 +615,13 @@
         ctx.shadowBlur = 0;
     }
     
-    function resizeAndReset2D() {
+    function resizeAndReset2D(forceReinit = false) {
         const container = document.getElementById('mode2d');
         if (!container) return;
         const rect = container.getBoundingClientRect();
         let newWidth = Math.max(100, rect.width);
         let newHeight = Math.max(100, rect.height);
-        if (newWidth === width && newHeight === height) return;
+        if ((newWidth === width && newHeight === height) && !forceReinit) return;
         width = newWidth;
         height = newHeight;
         const dpr = window.devicePixelRatio || 1;
@@ -555,15 +631,12 @@
         canvas2d.style.height = `${height}px`;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        particles2d = init2DParticles(width, height);
+        particles2d = init2DParticles(currentBallsCount, width, height, !forceReinit);
     }
     
-    // --------------------------------------------------------------
-    // 3. 3D МОДУЛЬ
-    // --------------------------------------------------------------
+    // ------------------- 3D МОДУЛЬ -------------------
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
-    const SPHERE_COUNT = 14;
     const BOX_DEPTH = 16.0;
     const SPHERE_RADII = [0.76, 0.68, 0.84, 0.64, 0.72, 0.80, 0.70, 0.76, 0.66, 0.82, 0.64, 0.74, 0.72, 0.78];
     const GRAVITY_BASE_3D = 14.0;
@@ -575,21 +648,25 @@
     let threeRunning = false;
     let lastTimestamp3d = 0;
     let threeContainer = document.getElementById('threeContainer');
-    let currentBoxWidth = 6.0;
-    let currentBoxHeight = 6.0;
+    let currentBoxWidth = 7.0, currentBoxHeight = 7.0;
     let wireframeLines = null;
+    let saveTimeout3D;
+    
+    function throttleSavePositions3D() {
+        if (saveTimeout3D) clearTimeout(saveTimeout3D);
+        saveTimeout3D = setTimeout(() => saveBallsPositions(), 500);
+    }
     
     function updateCubeAndCamera() {
         if (!threeContainer || !camera || !renderer) return;
         const rect = threeContainer.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) {
-            // Если размеры ещё нулевые, попробуем позже
-            setTimeout(() => updateCubeAndCamera(), 50);
+            setTimeout(() => updateCubeAndCamera(), 30);
             return;
         }
         const aspect = rect.width / rect.height;
-        const baseWidth = 7.0;
-        const worldWidth = baseWidth;
+        // Фиксированная ширина мира, высота подстраивается под aspect
+        const worldWidth = 7.0;
         const worldHeight = worldWidth / aspect;
         currentBoxWidth = worldWidth;
         currentBoxHeight = worldHeight;
@@ -606,14 +683,10 @@
         if (wireframeLines) scene.remove(wireframeLines);
         const boxGeo = new THREE.BoxGeometry(currentBoxWidth, currentBoxHeight, BOX_DEPTH);
         const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-        const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
-        wireframeLines = new THREE.LineSegments(edgesGeo, wireMat);
-        wireframeLines.name = "cubeEdges";
+        wireframeLines = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x60a5fa }));
         scene.add(wireframeLines);
         
-        const halfX = currentBoxWidth / 2;
-        const halfY = currentBoxHeight / 2;
-        const halfZ = BOX_DEPTH / 2;
+        const halfX = currentBoxWidth / 2, halfY = currentBoxHeight / 2, halfZ = BOX_DEPTH / 2;
         for (let i = 0; i < sphereMeshes.length; i++) {
             const r = spheres[i].r;
             const pos = sphereMeshes[i].position;
@@ -623,95 +696,53 @@
         }
     }
     
-    function init3D() {
-        if (renderer) {
-            renderer.dispose();
-            while (threeContainer.firstChild) threeContainer.removeChild(threeContainer.firstChild);
-        }
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0f172a);
-        
-        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50);
-        camera.position.set(0, 0, 8);
-        camera.lookAt(0, 0, 0);
-        
-        // Временно зададим небольшие размеры, чтобы не было ошибок
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-        renderer.setSize(100, 100);
-        threeContainer.appendChild(renderer.domElement);
-        
-        const ambientLight = new THREE.AmbientLight(0x404060);
-        scene.add(ambientLight);
-        const mainLight = new THREE.DirectionalLight(0xffffff, 0.95);
-        mainLight.position.set(2.5, 3, 4);
-        scene.add(mainLight);
-        const fillLight = new THREE.PointLight(0x88aaff, 0.45);
-        fillLight.position.set(-1.2, 1.2, 2.5);
-        scene.add(fillLight);
-        const backLight = new THREE.PointLight(0x6688dd, 0.35);
-        backLight.position.set(0, 0.5, -3.5);
-        scene.add(backLight);
-        
-        spheres = [];
+    function reinit3DWithCount() {
+        if (!threeRunning) return;
+        let oldPositions = sphereMeshes.map(m => ({x: m.position.x, y: m.position.y, z: m.position.z}));
+        for (let m of sphereMeshes) scene.remove(m);
         sphereMeshes = [];
+        spheres = [];
         sphereVelocities = [];
-        for (let i = 0; i < SPHERE_COUNT; i++) {
+        for (let i = 0; i < currentBallsCount; i++) {
             let r = SPHERE_RADII[i % SPHERE_RADII.length];
-            const hue = 0.07 + Math.random() * 0.14;
-            const saturation = 0.65;
-            const lightness = 0.68;
-            const color = new THREE.Color().setHSL(hue, saturation, lightness);
+            const color = new THREE.Color().setHSL(0.07 + Math.random()*0.14, 0.65, 0.68);
             const geometry = new THREE.SphereGeometry(r, 56, 56);
-            const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.28, metalness: 0.08 });
+            const material = new THREE.MeshStandardMaterial({ color, roughness: 0.28, metalness: 0.08 });
             const sphere = new THREE.Mesh(geometry, material);
-            let x = (Math.random() - 0.5) * 5.5;
-            let y = (Math.random() - 0.5) * 5.5;
-            let z = (Math.random() - 0.5) * (BOX_DEPTH - 2 * r);
-            sphere.position.set(x, y, z);
+            let pos;
+            if (i < oldPositions.length) {
+                pos = oldPositions[i];
+            } else {
+                pos = { x: (Math.random() - 0.5) * 5.5, y: (Math.random() - 0.5) * 5.5, z: (Math.random() - 0.5) * (BOX_DEPTH - 2 * r) };
+            }
+            sphere.position.set(pos.x, pos.y, pos.z);
             scene.add(sphere);
             sphereMeshes.push(sphere);
-            spheres.push({ r: r, mass: r * r * r });
+            spheres.push({ r, mass: r * r * r });
             sphereVelocities.push({ x: 0, y: 0, z: 0 });
         }
-        // Обновим камеру и размеры после инициализации
-        setTimeout(() => updateCubeAndCamera(), 20);
+        updateCubeAndCamera();
     }
     
     function update3DPhysics(dt) {
         let correctedGamma = gamma;
         if (beta > 150 || beta < -150) correctedGamma = -gamma;
-        const radBeta = beta * Math.PI / 180;
-        const radGamma = correctedGamma * Math.PI / 180;
+        const radBeta = beta * Math.PI / 180, radGamma = correctedGamma * Math.PI / 180;
         let gravX = GRAVITY_BASE_3D * Math.sin(radGamma);
         let gravY = -GRAVITY_BASE_3D * Math.sin(radBeta);
         let gravZ = -GRAVITY_BASE_3D * Math.cos(radBeta) * Math.cos(radGamma);
-        let accX = filteredAccX * ACCEL_SCALE_3D;
-        let accY = -filteredAccY * ACCEL_SCALE_3D;
-        let accZ = -filteredAccZ * ACCEL_SCALE_3D;
+        let accX = filteredAccX * ACCEL_SCALE_3D, accY = -filteredAccY * ACCEL_SCALE_3D, accZ = -filteredAccZ * ACCEL_SCALE_3D;
         if (Math.abs(filteredAccX) > 5) accX *= ACCEL_BOOST_3D;
         if (Math.abs(filteredAccY) > 5) accY *= ACCEL_BOOST_3D;
         if (Math.abs(filteredAccZ) > 5) accZ *= ACCEL_BOOST_3D;
-        
-        let totalForceX = gravX + accX;
-        let totalForceY = gravY + accY;
-        let totalForceZ = gravZ + accZ;
-        
-        const halfX = currentBoxWidth / 2;
-        const halfY = currentBoxHeight / 2;
-        const halfZ = BOX_DEPTH / 2;
-        
+        let totalForceX = gravX + accX, totalForceY = gravY + accY, totalForceZ = gravZ + accZ;
+        const halfX = currentBoxWidth / 2, halfY = currentBoxHeight / 2, halfZ = BOX_DEPTH / 2;
         for (let i = 0; i < spheres.length; i++) {
             let vel = sphereVelocities[i];
-            vel.x += totalForceX * dt;
-            vel.y += totalForceY * dt;
-            vel.z += totalForceZ * dt;
-            vel.x *= AIR_DRAG_3D;
-            vel.y *= AIR_DRAG_3D;
-            vel.z *= AIR_DRAG_3D;
+            vel.x += totalForceX * dt; vel.y += totalForceY * dt; vel.z += totalForceZ * dt;
+            vel.x *= AIR_DRAG_3D; vel.y *= AIR_DRAG_3D; vel.z *= AIR_DRAG_3D;
             let pos = sphereMeshes[i].position;
-            pos.x += vel.x * dt;
-            pos.y += vel.y * dt;
-            pos.z += vel.z * dt;
+            pos.x += vel.x * dt; pos.y += vel.y * dt; pos.z += vel.z * dt;
             let r = spheres[i].r;
             if (pos.x + r > halfX) { pos.x = halfX - r; vel.x = -vel.x * WALL_DAMP_3D; }
             if (pos.x - r < -halfX) { pos.x = -halfX + r; vel.x = -vel.x * WALL_DAMP_3D; }
@@ -720,7 +751,6 @@
             if (pos.z + r > halfZ) { pos.z = halfZ - r; vel.z = -vel.z * WALL_DAMP_3D; }
             if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP_3D; }
         }
-        
         for (let i = 0; i < spheres.length; i++) {
             for (let j = i+1; j < spheres.length; j++) {
                 let p1 = sphereMeshes[i].position, p2 = sphereMeshes[j].position;
@@ -751,6 +781,7 @@
                 }
             }
         }
+        throttleSavePositions3D();
     }
     
     function animate3D(time) {
@@ -759,35 +790,131 @@
         let dt = Math.min(0.033, (time - lastTimestamp3d) / 1000);
         if (dt > 0) update3DPhysics(dt);
         lastTimestamp3d = time;
-        if (renderer && scene && camera) {
-            renderer.render(scene, camera);
-        }
+        if (renderer && scene && camera) renderer.render(scene, camera);
         requestAnimationFrame(animate3D);
     }
     
     function start3D() {
         if (threeRunning) return;
-        init3D();
         threeRunning = true;
+        if (renderer) { renderer.dispose(); threeContainer.innerHTML = ''; }
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a);
+        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        threeContainer.appendChild(renderer.domElement);
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.95);
+        mainLight.position.set(2.5, 3, 4);
+        scene.add(mainLight);
+        scene.add(new THREE.PointLight(0x88aaff, 0.45));
+        scene.add(new THREE.PointLight(0x6688dd, 0.35));
+        reinit3DWithCount();
         lastTimestamp3d = 0;
         requestAnimationFrame(animate3D);
     }
     
     function stop3D() {
         threeRunning = false;
-        if (renderer) {
-            renderer.dispose();
-            if (threeContainer) threeContainer.innerHTML = '';
-            renderer = null;
-        }
+        if (renderer) { renderer.dispose(); threeContainer.innerHTML = ''; renderer = null; }
     }
     
-    // --------------------------------------------------------------
-    // 4. ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ
-    // --------------------------------------------------------------
-    let mode2dActive = true;
-    let anim2dId = null;
+    // ------------------- СОХРАНЕНИЕ И ЗАГРУЗКА -------------------
+    function saveBallsPositions() {
+        let positions = { mode2d: [], mode3d: [] };
+        if (particles2d.length) {
+            positions.mode2d = particles2d.map(p => ({ x: p.x, y: p.y, r: p.r }));
+        }
+        if (sphereMeshes.length) {
+            positions.mode3d = sphereMeshes.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z }));
+        }
+        localStorage.setItem('ballsPositions', JSON.stringify(positions));
+    }
     
+    function loadBallsPositions() {
+        const saved = localStorage.getItem('ballsPositions');
+        if (!saved) return null;
+        try {
+            return JSON.parse(saved);
+        } catch(e) { return null; }
+    }
+    
+    function saveToLocalStorage() {
+        localStorage.setItem('selectedMode', mode2dActive ? '2d' : '3d');
+        localStorage.setItem('isFullscreen', isFullscreen);
+        localStorage.setItem('ballsCount', currentBallsCount);
+        localStorage.setItem('sensitivity', sensitivity);
+        saveBallsPositions();
+    }
+    
+    function loadFromLocalStorage() {
+        const savedMode = localStorage.getItem('selectedMode');
+        if (savedMode === '3d') {
+            mode2dActive = false;
+            document.querySelector('.tab-btn[data-mode="3d"]').classList.add('active');
+            document.querySelector('.tab-btn[data-mode="2d"]').classList.remove('active');
+            document.getElementById('mode2d').classList.remove('active-mode');
+            document.getElementById('mode3d').classList.add('active-mode');
+        } else {
+            mode2dActive = true;
+            document.querySelector('.tab-btn[data-mode="2d"]').classList.add('active');
+            document.querySelector('.tab-btn[data-mode="3d"]').classList.remove('active');
+            document.getElementById('mode3d').classList.remove('active-mode');
+            document.getElementById('mode2d').classList.add('active-mode');
+        }
+        
+        const savedCount = localStorage.getItem('ballsCount');
+        if (savedCount !== null) currentBallsCount = Math.min(MAX_BALLS, Math.max(MIN_BALLS, parseInt(savedCount)));
+        ballsCountDisplay.textContent = currentBallsCount;
+        decrementBtn.disabled = (currentBallsCount <= MIN_BALLS);
+        incrementBtn.disabled = (currentBallsCount >= MAX_BALLS);
+        
+        const savedSens = localStorage.getItem('sensitivity');
+        if (savedSens !== null) {
+            sensitivity = parseFloat(savedSens);
+            sensitivitySlider.value = sensitivity;
+            sensitivityValue.textContent = sensitivity.toFixed(2);
+        }
+        
+        const savedFull = localStorage.getItem('isFullscreen');
+        if (savedFull === 'true' && !document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(e=>console.warn);
+            isFullscreen = true;
+            appContainer.classList.add('fullscreen-mode');
+            fullscreenBtn.textContent = '✕';
+        }
+        
+        if (mode2dActive) {
+            stop3D();
+            resizeAndReset2D(true);
+            start2DAnimation();
+        } else {
+            stop2DAnimation();
+            start3D();
+        }
+        
+        setTimeout(() => {
+            const positions = loadBallsPositions();
+            if (positions) {
+                if (mode2dActive && particles2d.length === currentBallsCount && positions.mode2d) {
+                    for (let i=0; i<particles2d.length && i<positions.mode2d.length; i++) {
+                        particles2d[i].x = positions.mode2d[i].x;
+                        particles2d[i].y = positions.mode2d[i].y;
+                    }
+                }
+                if (!mode2dActive && sphereMeshes.length === currentBallsCount && positions.mode3d) {
+                    for (let i=0; i<sphereMeshes.length && i<positions.mode3d.length; i++) {
+                        sphereMeshes[i].position.set(positions.mode3d[i].x, positions.mode3d[i].y, positions.mode3d[i].z);
+                    }
+                    if (renderer) updateCubeAndCamera();
+                }
+            }
+        }, 100);
+    }
+    
+    // ------------------- АНИМАЦИЯ 2D -------------------
+    let anim2dId = null;
     function start2DAnimation() {
         if (anim2dId) cancelAnimationFrame(anim2dId);
         let lastTime = 0;
@@ -804,33 +931,59 @@
         }
         anim2dId = requestAnimationFrame(loop2d);
     }
-    
     function stop2DAnimation() {
         if (anim2dId) { cancelAnimationFrame(anim2dId); anim2dId = null; }
     }
+    
+    // ------------------- ПОЛНОЭКРАННЫЙ РЕЖИМ -------------------
+    const appContainer = document.getElementById('appContainer');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().then(() => {
+                appContainer.classList.add('fullscreen-mode');
+                isFullscreen = true;
+                saveToLocalStorage();
+                setTimeout(() => handleGlobalResize(), 50);
+            }).catch(e => console.warn);
+        } else {
+            document.exitFullscreen().then(() => {
+                appContainer.classList.remove('fullscreen-mode');
+                isFullscreen = false;
+                saveToLocalStorage();
+                setTimeout(() => handleGlobalResize(), 50);
+            }).catch(e => console.warn);
+        }
+    }
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) {
+            appContainer.classList.add('fullscreen-mode');
+            fullscreenBtn.textContent = '✕';
+            isFullscreen = true;
+        } else {
+            appContainer.classList.remove('fullscreen-mode');
+            fullscreenBtn.textContent = '⛶';
+            isFullscreen = false;
+        }
+        saveToLocalStorage();
+        setTimeout(() => handleGlobalResize(), 50);
+    });
     
     function handleGlobalResize() {
         if (mode2dActive) {
             resizeAndReset2D();
         } else {
-            if (renderer && threeContainer) {
-                updateCubeAndCamera();
-            }
+            if (renderer && threeContainer) updateCubeAndCamera();
         }
         checkOrientation();
     }
-    
     window.addEventListener('resize', handleGlobalResize);
     
-    function init2DFullscreen() {
-        resizeAndReset2D();
-        start2DAnimation();
-    }
-    
+    // ------------------- ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ -------------------
     const mode2dDiv = document.getElementById('mode2d');
     const mode3dDiv = document.getElementById('mode3d');
     const tabBtns = document.querySelectorAll('.tab-btn');
-    
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             tabBtns.forEach(b => b.classList.remove('active'));
@@ -841,7 +994,7 @@
                 mode3dDiv.classList.remove('active-mode');
                 stop3D();
                 stop2DAnimation();
-                resizeAndReset2D();
+                resizeAndReset2D(true);
                 start2DAnimation();
             } else {
                 mode2dActive = false;
@@ -850,62 +1003,20 @@
                 stop2DAnimation();
                 start3D();
             }
+            saveToLocalStorage();
         });
     });
     
-    init2DFullscreen();
-    
-    // --------------------------------------------------------------
-    // 5. ПОЛНОЭКРАННЫЙ РЕЖИМ
-    // --------------------------------------------------------------
-    const appContainer = document.getElementById('appContainer');
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    
-    function toggleFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().then(() => {
-                appContainer.classList.add('fullscreen-mode');
-                setTimeout(() => handleGlobalResize(), 50);
-            }).catch(err => console.warn(err));
-        } else {
-            document.exitFullscreen().then(() => {
-                appContainer.classList.remove('fullscreen-mode');
-                setTimeout(() => handleGlobalResize(), 50);
-            }).catch(err => console.warn(err));
-        }
-    }
-    
-    fullscreenBtn.addEventListener('click', toggleFullscreen);
-    document.addEventListener('fullscreenchange', () => {
-        if (document.fullscreenElement) {
-            appContainer.classList.add('fullscreen-mode');
-            fullscreenBtn.textContent = '✕';
-            fullscreenBtn.title = 'Выйти из полноэкранного режима';
-            handleGlobalResize();
-        } else {
-            appContainer.classList.remove('fullscreen-mode');
-            fullscreenBtn.textContent = '⛶';
-            fullscreenBtn.title = 'Полноэкранный режим';
-            handleGlobalResize();
-        }
-    });
-    
-    // --------------------------------------------------------------
-    // 6. ПРЕДУПРЕЖДЕНИЕ О ВЕРТИКАЛЬНОЙ ОРИЕНТАЦИИ
-    // --------------------------------------------------------------
+    // ------------------- ОРИЕНТАЦИЯ -------------------
     const warningDiv = document.getElementById('orientationWarning');
-    
     function checkOrientation() {
-        if (window.innerWidth > window.innerHeight) {
-            warningDiv.classList.remove('hidden');
-        } else {
-            warningDiv.classList.add('hidden');
-        }
+        warningDiv.classList.toggle('hidden', window.innerWidth <= window.innerHeight);
     }
-    
     window.addEventListener('resize', checkOrientation);
-    window.addEventListener('load', checkOrientation);
     checkOrientation();
+    
+    // ------------------- СТАРТ -------------------
+    loadFromLocalStorage();
     setInterval(checkOrientation, 2000);
 </script>
 </body>
