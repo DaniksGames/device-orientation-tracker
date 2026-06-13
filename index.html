@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Физика шариков — 2D / 3D с датчиками телефона | Куб со всеми рёбрами</title>
+    <title>Физика шариков — 2D / 3D с датчиками телефона | Полноэкранный 3D-куб</title>
     <style>
         * {
             margin: 0;
@@ -28,6 +28,27 @@
             flex-direction: column;
             overflow: hidden;
             position: relative;
+        }
+
+        /* Верхняя панель и информационная панель — будут скрываться в полноэкранном режиме */
+        .tabs, .info-panel {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .fullscreen-mode .tabs,
+        .fullscreen-mode .info-panel {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-100%);
+        }
+
+        .fullscreen-mode .info-panel {
+            transform: translateY(100%);
+        }
+
+        /* Адаптация основного контента под полноэкранный режим */
+        .fullscreen-mode .mode-container {
+            flex: 1;
         }
 
         .tabs {
@@ -148,6 +169,7 @@
             background: #2563eb;
         }
 
+        /* Кнопка полноэкранного режима — остаётся всегда видимой */
         .fullscreen-btn {
             position: fixed;
             bottom: 20px;
@@ -155,29 +177,69 @@
             width: 52px;
             height: 52px;
             border-radius: 50%;
-            background: rgba(0, 0, 0, 0.65);
+            background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.4);
             color: white;
             font-size: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            z-index: 1000;
+            z-index: 2000;
             transition: 0.2s;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
             font-family: monospace;
         }
         .fullscreen-btn:hover {
-            background: rgba(59,130,246,0.8);
+            background: rgba(59,130,246,0.9);
             transform: scale(1.05);
+        }
+
+        /* Предупреждение о повороте экрана (вертикально) */
+        .orientation-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.92);
+            backdrop-filter: blur(12px);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            padding: 2rem;
+            transition: opacity 0.3s;
+            font-size: 1.4rem;
+        }
+        .orientation-warning.hidden {
+            display: none;
+        }
+        .warning-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
+        }
+        .warning-text {
+            max-width: 300px;
+            background: rgba(0,0,0,0.6);
+            padding: 1.2rem;
+            border-radius: 2rem;
+            line-height: 1.4;
+        }
+        .warning-text strong {
+            color: #facc15;
         }
     </style>
 </head>
 <body>
-<div class="app-container">
-    <div class="tabs">
+<div class="app-container" id="appContainer">
+    <div class="tabs" id="tabsBar">
         <button class="tab-btn active" data-mode="2d">2D • Полный экран</button>
         <button class="tab-btn" data-mode="3d">3D • Куб (все рёбра)</button>
     </div>
@@ -190,7 +252,7 @@
         <div id="threeContainer"></div>
     </div>
 
-    <div class="info-panel">
+    <div class="info-panel" id="infoPanel">
         <details>
             <summary>📊 Датчики движения</summary>
             <div class="sensor-data">
@@ -206,6 +268,15 @@
 </div>
 
 <div id="fullscreenBtn" class="fullscreen-btn" title="Полноэкранный режим">⛶</div>
+
+<!-- Предупреждение: требуем вертикальную ориентацию (портрет) -->
+<div id="orientationWarning" class="orientation-warning hidden">
+    <div class="warning-icon">🔄</div>
+    <div class="warning-text">
+        📱 Поверните устройство <strong>вертикально</strong> (портретная ориентация)<br><br>
+        и <strong>отключите автоповорот экрана</strong><br> для корректной работы датчиков.
+    </div>
+</div>
 
 <script type="importmap">
     {
@@ -307,7 +378,7 @@
     }
 
     // --------------------------------------------------------------
-    // 2. 2D МОДУЛЬ (полноэкранные границы)
+    // 2. 2D МОДУЛЬ (границы экрана)
     // --------------------------------------------------------------
     let canvas2d = document.getElementById('canvas2d');
     let ctx = canvas2d.getContext('2d');
@@ -469,14 +540,14 @@
     }
     
     // --------------------------------------------------------------
-    // 3. 3D МОДУЛЬ — ПЕРСПЕКТИВНАЯ КАМЕРА, ВСЕ РЁБРА КУБА
-    //    Передняя грань точно соответствует экрану (по размерам)
+    // 3. 3D МОДУЛЬ — УВЕЛИЧЕННАЯ ГЛУБИНА И БОЛЬШИЕ ШАРЫ
     // --------------------------------------------------------------
     let scene, camera, renderer, spheres = [], sphereMeshes = [];
     let sphereVelocities = [];
     const SPHERE_COUNT = 14;
-    const BOX_DEPTH = 5.0;          // глубина куба
-    const SPHERE_RADII = [0.28, 0.24, 0.32, 0.22, 0.26, 0.30, 0.26, 0.28, 0.24, 0.30, 0.22, 0.28, 0.26, 0.32];
+    const BOX_DEPTH = 8.0;          // глубина увеличена
+    // Увеличенные радиусы шаров
+    const SPHERE_RADII = [0.38, 0.34, 0.42, 0.32, 0.36, 0.40, 0.35, 0.38, 0.33, 0.41, 0.32, 0.37, 0.36, 0.39];
     const GRAVITY_BASE_3D = 14.0;
     const ACCEL_SCALE_3D = 5.2;
     const ACCEL_BOOST_3D = 1.25;
@@ -490,24 +561,17 @@
     let currentBoxHeight = 6.0;
     let wireframeLines = null;
     
-    // Функция пересчёта размеров куба и положения камеры так, чтобы передняя грань занимала весь экран
     function updateCubeAndCamera() {
         if (!threeContainer || !camera) return;
         const rect = threeContainer.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
         const aspect = rect.width / rect.height;
-        
-        // Базовая ширина в мировых координатах = 7.0 (задаём комфортный размер)
-        // Чтобы передняя грань была видна полностью, подбираем размеры
         const baseWidth = 7.0;
         const worldWidth = baseWidth;
         const worldHeight = worldWidth / aspect;
         currentBoxWidth = worldWidth;
         currentBoxHeight = worldHeight;
         
-        // Настройка перспективной камеры: расстояние подбираем так, чтобы передняя грань была видна целиком
-        // Поле зрения по вертикали: tan(fov/2) = (worldHeight/2) / distance
-        // Используем FOV 45 градусов, вычислим дистанцию
         const fov = 45 * Math.PI / 180;
         const distance = (worldHeight / 2) / Math.tan(fov / 2);
         camera.fov = 45;
@@ -516,16 +580,14 @@
         camera.lookAt(0, 0, 0);
         camera.updateProjectionMatrix();
         
-        // Обновляем каркас куба (все рёбра)
         if (wireframeLines) scene.remove(wireframeLines);
         const boxGeo = new THREE.BoxGeometry(currentBoxWidth, currentBoxHeight, BOX_DEPTH);
         const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-        const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, linewidth: 2 }); // linewidth не везде поддерживается, но цвет яркий
+        const wireMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
         wireframeLines = new THREE.LineSegments(edgesGeo, wireMat);
         wireframeLines.name = "cubeEdges";
         scene.add(wireframeLines);
         
-        // Корректируем позиции сфер, чтобы они не вылезали за новые границы
         const halfX = currentBoxWidth / 2;
         const halfY = currentBoxHeight / 2;
         const halfZ = BOX_DEPTH / 2;
@@ -546,7 +608,6 @@
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0f172a);
         
-        // Перспективная камера
         camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50);
         camera.position.set(0, 0, 8);
         camera.lookAt(0, 0, 0);
@@ -557,7 +618,6 @@
         renderer.setSize(rect.width, rect.height);
         threeContainer.appendChild(renderer.domElement);
         
-        // Освещение, чтобы сферы выглядели объёмно
         const ambientLight = new THREE.AmbientLight(0x404060);
         scene.add(ambientLight);
         const mainLight = new THREE.DirectionalLight(0xffffff, 0.95);
@@ -570,7 +630,6 @@
         backLight.position.set(0, 0.5, -3.5);
         scene.add(backLight);
         
-        // Сферы
         spheres = [];
         sphereMeshes = [];
         sphereVelocities = [];
@@ -592,8 +651,6 @@
             spheres.push({ r: r, mass: r * r * r });
             sphereVelocities.push({ x: 0, y: 0, z: 0 });
         }
-        
-        // Первичная настройка размеров куба
         updateCubeAndCamera();
     }
     
@@ -641,7 +698,6 @@
             if (pos.z - r < -halfZ) { pos.z = -halfZ + r; vel.z = -vel.z * WALL_DAMP_3D; }
         }
         
-        // Коллизии между сферами
         for (let i = 0; i < spheres.length; i++) {
             for (let j = i+1; j < spheres.length; j++) {
                 let p1 = sphereMeshes[i].position, p2 = sphereMeshes[j].position;
@@ -683,10 +739,9 @@
         if (renderer && scene && camera && threeContainer) {
             const rect = threeContainer.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {
-                // Обновляем размер рендера и камеру, если соотношение изменилось
                 if (renderer.domElement.width !== rect.width || renderer.domElement.height !== rect.height) {
                     renderer.setSize(rect.width, rect.height);
-                    updateCubeAndCamera();   // пересчёт размеров куба и камеры
+                    updateCubeAndCamera();
                 }
             }
             renderer.render(scene, camera);
@@ -712,7 +767,7 @@
     }
     
     // --------------------------------------------------------------
-    // 4. ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ И RESIZE
+    // 4. ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ
     // --------------------------------------------------------------
     let mode2dActive = true;
     let anim2dId = null;
@@ -750,6 +805,7 @@
                 }
             }
         }
+        checkOrientation(); // проверка вертикальной ориентации
     }
     
     window.addEventListener('resize', handleGlobalResize);
@@ -788,28 +844,54 @@
     init2DFullscreen();
     
     // --------------------------------------------------------------
-    // 5. ПОЛНОЭКРАННАЯ КНОПКА
+    // 5. ПОЛНОЭКРАННЫЙ РЕЖИМ СО СКРЫТИЕМ ИНТЕРФЕЙСА
     // --------------------------------------------------------------
+    const appContainer = document.getElementById('appContainer');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
+    
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                console.warn(`Ошибка fullscreen: ${err.message}`);
-            });
+            document.documentElement.requestFullscreen().then(() => {
+                appContainer.classList.add('fullscreen-mode');
+            }).catch(err => console.warn(err));
         } else {
-            document.exitFullscreen();
+            document.exitFullscreen().then(() => {
+                appContainer.classList.remove('fullscreen-mode');
+            }).catch(err => console.warn(err));
         }
     }
+    
     fullscreenBtn.addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', () => {
         if (document.fullscreenElement) {
+            appContainer.classList.add('fullscreen-mode');
             fullscreenBtn.textContent = '✕';
             fullscreenBtn.title = 'Выйти из полноэкранного режима';
         } else {
+            appContainer.classList.remove('fullscreen-mode');
             fullscreenBtn.textContent = '⛶';
             fullscreenBtn.title = 'Полноэкранный режим';
         }
     });
+    
+    // --------------------------------------------------------------
+    // 6. ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ ЭКРАНА (ТРЕБУЕМ ВЕРТИКАЛЬНО)
+    // --------------------------------------------------------------
+    const warningDiv = document.getElementById('orientationWarning');
+    
+    function checkOrientation() {
+        // Если ширина больше высоты — ландшафт, просим повернуть вертикально
+        if (window.innerWidth > window.innerHeight) {
+            warningDiv.classList.remove('hidden');
+        } else {
+            warningDiv.classList.add('hidden');
+        }
+    }
+    
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('load', checkOrientation);
+    checkOrientation();
+    setInterval(checkOrientation, 2000);
 </script>
 </body>
 </html>
